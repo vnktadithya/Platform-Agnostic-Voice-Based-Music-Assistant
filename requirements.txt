@@ -1,0 +1,21 @@
+fastapi
+uvicorn
+spotipy
+python-dotenv
+httpx
+pydantic
+langchain
+openai
+elevenlabs
+speechbrain
+torch
+python-multipart #The python-multipart module is a library used for parsing multipart/form-data POST requests, primarily for handling file uploads in web applications.
+transformers
+librosa
+soundfile
+pydub
+sqlalchemy
+redis
+celery
+gevent #required to run celery library in windows
+thefuzz
