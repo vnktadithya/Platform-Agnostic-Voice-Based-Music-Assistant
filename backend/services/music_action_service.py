@@ -22,7 +22,7 @@ class MusicActionService:
                 "play_song_by_artist": lambda: spotify.play_by_query(
                     parameters["db_session"],
                     parameters["platform_account_id"],
-                    parameters.get("artist", "")
+                    parameters.get("artist", "") or parameters.get("artist_name", "")
                 ),
                 "play_song_by_movie": lambda: spotify.play_by_query(
                     parameters["db_session"],
@@ -34,6 +34,7 @@ class MusicActionService:
                     parameters["platform_account_id"],
                     parameters.get("playlist_name", "")
                 ),
+                "get_current_song": lambda: spotify.get_currently_playing_song(),
 
                 # === Playback controls ===
                 "pause_song": spotify.pause,
@@ -63,20 +64,37 @@ class MusicActionService:
                 "delete_playlist": lambda: spotify.delete_user_playlist(
                     parameters["db_session"],
                     parameters["platform_account_id"],
-                    parameters.get("playlist_id")
+                    parameters.get("playlist_name")  # fuzzy search uses playlist_name
                 ),
-                "add_to_playlist": lambda: spotify.add_tracks_to_playlist(
+
+                "add_to_playlist": lambda: (spotify.add_tracks_to_playlist(
                     spotify.resolve_playlist_id(
                         parameters["db_session"], 
                         parameters["platform_account_id"], 
                         parameters.get("playlist_name", "")
                     ),
-                    parameters.get("uris", [])
+                    spotify.search_track_uris(
+                        parameters["db_session"],
+                        parameters["platform_account_id"],
+                        parameters.get("song_name", ""),
+                        limit=5)  # you can limit result count here
+                    ),
                 ),
+
                 "remove_from_playlist": lambda: spotify.remove_tracks_from_playlist(
-                    parameters.get("playlist_id"),
-                    parameters.get("uris", [])
+                    spotify.resolve_playlist_id(
+                        parameters["db_session"],
+                        parameters["platform_account_id"],
+                        parameters.get("playlist_name", "")
+                    ),
+                    spotify.search_track_uris(
+                        parameters["db_session"],
+                        parameters["platform_account_id"],
+                        parameters.get("song_name", ""),
+                        limit=5
+                    )
                 ),
+
                 "reorder_playlist": lambda: spotify.reorder_playlist_tracks(
                     parameters.get("playlist_id"),
                     parameters.get("range_start", 0),

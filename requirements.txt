@@ -1,6 +1,7 @@
 fastapi
 uvicorn
 spotipy
+ytmusicapi
 python-dotenv
 httpx
 pydantic

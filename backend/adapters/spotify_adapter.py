@@ -6,6 +6,7 @@ from spotipy.oauth2 import SpotifyOAuth, SpotifyAuthBase
 from spotipy.exceptions import SpotifyException
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
+from backend.adapters.adapter_base import MusicPlatformAdapter
 from backend.models.database_models import UserPlaylist, UserLikedSong, SearchCache
 from backend.utils.fuzzy_utils import fuzzy_db_match, fuzzy_search_cache
 from backend.utils.normalize_text import normalize_query
@@ -35,12 +36,25 @@ class NoActiveDeviceException(Exception):
     """Custom exception for when no active Spotify device is found."""
     pass
 
-class SpotifyAdapter:
+class SpotifyAdapter(MusicPlatformAdapter):
+
+    CAPABILITIES = {
+        "playback_control": True,
+        "playlist_management": True,
+        "library_management": True,
+        "search": True,
+        "recommendations": True,
+        "real_time_control": True,
+        "favorites_management": True,
+        "playlist_creation": True,
+        "voice_control": True,
+    }
+
     def __init__(self, access_token: str):
         if not access_token:
             #raise ValueError("SpotifyAdapter must be initialized with a valid access_token.")
-            access_token = "BQCCia4VBP-27XMdgSDj5Fkc2d8KiMZZF5iqc6ZDfOjd1LM6RWQnFIjiNNom7v0NO-JQJb-HZZQsU6jU6bYX32nUnxrMDEXhtYwqFJWSABXi0BzBNqU2jbUh5nlXZv6kktPcyDLmsVoPUoLzzQlgIHR6wZv0eYHe6l4aQLPvSV22AU7NT4TiKU7bi4IKHxuQQKaderFydwAFai44s3bamPGAWlR_am8Vx0v_dDW-DxmWt_QuUeF0jwen4EwA8ZQURiGjdbXvpbXjTXnU1l2XMsmG0d0FHUhwnl_cVpsvyBQTmB_srGzn4OUpV0IiFcBZech7LHOq5Dxzyu1whJYhqWbv"
-        
+            access_token = "BQDVuvokE2UFo4GIcYon8U4CXO66xOcr4LDA0BpFJhq2__OEYMEqo2fhXW3N7bETJ27erindVe-RhluUYlwWVNsOBMXtc_vVbfd4vN55GJehN3Kkn-O8kpa4k1ejb-aui6mEP1ht4jSrAkPa1BO3LbC0c6urJ8_gl0IurUoDqfZx9b7s5v8ZJrUrPe11NHKigaVMO8LQPdndRumd9jqAkJEIwbiQ9OJodnNiNFwG1LrgqjpoCD5DFotzRE9XHMWpcvrVWWxGhCKVRWz4bxMWl-eGVFHOXSdJZDad7ysFZsmRaTcPXZGZrPZPBdLBd4YTNdtTMRBQTWEvBp9i0sWGUIhLqL0bv0s4e5WWv0uvUcOJw402Q1pUig"
+                    
         # ✅ FIX: We now use the custom auth_manager to pass the token and session correctly.
         auth_manager = TokenAuthManager(access_token)
         self.sp = Spotify(auth_manager=auth_manager, requests_timeout=15)
@@ -78,10 +92,13 @@ class SpotifyAdapter:
             client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
             redirect_uri="http://127.0.0.1:8000/adapter/spotify/callback",
             scope=(
-                "user-read-private user-read-email user-library-read playlist-read-private "
-                "playlist-modify-public playlist-modify-private "
-                "user-read-playback-state user-modify-playback-state"
-            ),
+                    "user-read-private user-read-email "
+                    "user-library-read user-library-modify "
+                    "playlist-read-private playlist-read-collaborative "
+                    "playlist-modify-public playlist-modify-private "
+                    "user-read-playback-state user-modify-playback-state user-read-currently-playing "
+                    "user-top-read user-read-recently-played user-follow-read user-follow-modify"
+                ),
             cache_path=None
         )
 
@@ -150,6 +167,24 @@ class SpotifyAdapter:
         logger.info(f"Attempting to seek to {seconds}s on device {device_id}")
         self.sp.seek_track(seconds * 1000, device_id=device_id)
         logger.info(f"Spotify 'seek_track' to {seconds * 1000}ms command sent successfully.")
+
+    def get_currently_playing_song(self):
+        try:
+            playback = self.sp.current_playback()
+            if playback and playback.get("item"):
+                item = playback["item"]
+                song_name = item.get("name")
+                artist_names = ", ".join([artist["name"] for artist in item.get("artists", [])])
+                return {
+                    "song_name": song_name,
+                    "artist": artist_names,
+                    "uri": item.get("uri")
+                }
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching current playback: {e}")
+            return None
+
 
     # === Liked Songs ===
     def add_current_to_favorites(self, db: Session, platform_account_id: int):
@@ -256,20 +291,32 @@ class SpotifyAdapter:
             logger.info(f"Successfully cached new playlist '{name}' in the local database.")
         return playlist_data
 
-    def delete_user_playlist(self, db: Session, platform_account_id: int, playlist_id: str):
-        """Deletes a playlist from Spotify and immediately removes it from the local DB."""
-        logger.info(f"Deleting playlist ID '{playlist_id}' from Spotify.")
-        self.sp.current_user_unfollow_playlist(playlist_id)
+    def delete_user_playlist(self, db: Session, platform_account_id: int, playlist_name: str):
+        """Deletes a playlist by fuzzy matching its name, then unfollowing on Spotify and removing from DB."""
+
+        if not playlist_name:
+            raise ValueError("playlist_name is required and cannot be None or empty.")
         
-        # ✅ Layer 1 in action: Immediately delete from the local database
-        playlist_to_delete = db.query(UserPlaylist).filter(
-            UserPlaylist.platform_account_id == platform_account_id,
-            UserPlaylist.playlist_id == playlist_id
+        playlists = db.query(UserPlaylist).filter_by(platform_account_id=platform_account_id).all()
+
+        matched_playlist, score = fuzzy_db_match(playlist_name, playlists, attr="name", threshold=80)
+        if matched_playlist is None:
+            raise ValueError(f"No playlist matching '{playlist_name}' found with sufficient confidence.")
+
+        playlist_id = matched_playlist.playlist_id
+        logger.info(f"Deleting playlist '{matched_playlist.name}' (score: {score}) with ID '{playlist_id}'.")
+
+        self.sp.current_user_unfollow_playlist(playlist_id)
+
+        playlist_to_delete = db.query(UserPlaylist).filter_by(
+            platform_account_id=platform_account_id,
+            playlist_id=playlist_id
         ).first()
+
         if playlist_to_delete:
             db.delete(playlist_to_delete)
             db.commit()
-            logger.info(f"Successfully removed playlist ID '{playlist_id}' from the local cache.")
+            logger.info(f"Successfully removed playlist '{matched_playlist.name}' from local cache.")
 
     def add_tracks_to_playlist(self, playlist_id: str, uris: list):
         self.sp.playlist_add_items(playlist_id, uris)
@@ -344,57 +391,60 @@ class SpotifyAdapter:
     
     def play_playlist_by_name(self, db: Session, platform_account_id: int, playlist_name: str):
         """
-        Plays a playlist by name. Uses fuzzy DB match on normalized names in meta_data first,
-        fallback to direct normalization of the name if meta_data field absent, then API.
+        Plays a playlist by name using fuzzy match in DB first,
+        then falling back to Spotify API. Uses context_uri with playlist ID
+        for correct playback via Spotify API.
         """
-
         norm_playlist_name = normalize_query(playlist_name)  # Normalize user input once
 
         playlists = db.query(UserPlaylist).filter(
             UserPlaylist.platform_account_id == platform_account_id
         ).all()
 
-        # Define a temporary, minimal wrapper class
+        # Define a temporary wrapper class to access normalized name fallback
         class PlaylistNormView:
             def __init__(self, original):
                 self._original = original
-                self.normalized_name = ""  # Default in case everything is missing
+                self.normalized_name = ""
 
-                # Try to get from meta_data if present
+                # Get normalized_name meta field if present
                 if original.meta_data and isinstance(original.meta_data, dict):
                     v = original.meta_data.get("normalized_name")
-                    if v:  # Not None or empty
+                    if v:
                         self.normalized_name = v
-                # Fallback: on-the-fly normalization if meta field missing or empty
+
+                # fallback normalization
                 if not self.normalized_name and original.name:
                     self.normalized_name = normalize_query(original.name)
 
             def __getattr__(self, attr):
-                # Allows access to .playlist_id, .name, etc.
                 return getattr(self._original, attr)
 
         wrapped_playlists = [PlaylistNormView(pl) for pl in playlists]
         match, score = fuzzy_db_match(norm_playlist_name, wrapped_playlists, attr="normalized_name", threshold=80)
 
         playlist_id = None
+        playlist_display_name = playlist_name
         if match:
             playlist_id = match.playlist_id
-            logger.info(f"✅ Found playlist via fuzzy match in DB: '{match.name}' (score: {score})")
+            playlist_display_name = match.name
+            logger.info(f"✅ Found playlist via fuzzy match in DB: '{playlist_display_name}' (score: {score})")
         else:
-            logger.warning(f"⚠️ No DB match for '{playlist_name}'. Falling back to live Spotify API search...")
+            logger.warning(f"⚠️ No DB match for '{playlist_name}'. Falling back to Spotify API search...")
             results = self.sp.search(q=playlist_name, type="playlist", limit=1)
             playlists_api = results.get("playlists", {}).get("items", [])
             if not playlists_api:
                 raise Exception(f"❌ Playlist '{playlist_name}' not found in DB or Spotify API.")
-
             playlist_data = playlists_api[0]
             playlist_id = playlist_data["id"]
-            normalized_name = normalize_query(playlist_data.get("name", ""))
+            playlist_display_name = playlist_data.get("name", "")
+            normalized_name = normalize_query(playlist_display_name)
 
+            # Cache new playlist in DB
             db.add(UserPlaylist(
                 platform_account_id=platform_account_id,
                 playlist_id=playlist_id,
-                name=playlist_data.get("name", ""),
+                name=playlist_display_name,
                 meta_data={
                     "normalized_name": normalized_name,
                     "description": playlist_data.get("description", ""),
@@ -403,10 +453,14 @@ class SpotifyAdapter:
                 }
             ))
             db.commit()
-            logger.info(f"🆕 Cached new playlist '{playlist_data.get('name', '')}' from Spotify API into DB.")
+            logger.info(f"🆕 Cached new playlist '{playlist_display_name}' from Spotify API into DB.")
 
-        self.play([f"spotify:playlist:{playlist_id}"])
-        logger.info(f"🎵 Sent playback command for playlist '{playlist_name}' (ID: {playlist_id})")
+        # Use context_uri to play playlist by ID to avoid unsupported URI kind error
+        device_id = self._get_active_device_id()
+        context_uri = f"spotify:playlist:{playlist_id}"
+        logger.info(f"Playing playlist '{playlist_display_name}' using context URI: {context_uri} on device {device_id}")
+        self.sp.start_playback(device_id=device_id, context_uri=context_uri)
+
 
     
     def resolve_playlist_id(self, db: Session, platform_account_id: int, playlist_name: str) -> str:

@@ -6,62 +6,112 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+# --- CHANGE 1: Use GEMINI_API_KEY instead of OPENROUTER_API_KEY ---
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-def call_mistral_agent(user_text: str, voice_emotion: str = None, short_reply: bool = True, action_keys: list = []) -> dict:
+# --- Renamed function for clarity ---
+def call_gemini_agent(user_text: str, voice_emotion: str = None, short_reply: bool = True, action_keys: list = []) -> dict:
+    """
+    Calls the Gemini API to understand user intent for the music assistant.
+    """
+    # The prompt is slightly tweaked for better performance with Gemini
     prompt = """You are a world-class conversational music assistant.
-Your primary job is to understand the user's request and determine the appropriate action.
+Your primary job is to understand the user's request and decompose it into the necessary sequence of actions and their parameters.
 
 Instructions:
-1.  **Analyze the user's request:** Understand what they want to do (e.g., play a song, create a playlist, get a recommendation).
-2.  **Choose an Action:** If the request is a music-related command, you MUST choose exactly one action from the `Available Actions` list below.
-3.  **Extract Parameters:** Identify any parameters like `song_name`, `artist`, `playlist_name`, or `mood`.
-4.  **Handle Non-Music Talk:** If the user is just greeting, making small talk, or asking a non-music question, DO NOT return an `action`. Just provide a natural, conversational `reply`.
-5.  **Handle Missing Information:** If a required parameter is missing (e.g., they ask to add a song to a playlist but don't name it), your `reply` should be a follow-up question asking for the missing detail.
+1. **Analyze the user's request:** Parse and split the request into one or more music-related actions if multiple tasks are stated (e.g., "play X and add it to playlist Y").
+2. **Choose Actions:** For each action needed, select from the `Available Actions` list. The order in the list should match the order of intent in the user's message.
+3. **Extract Parameters:** For each action, identify the required parameters like `song_name`, `artist`, `playlist_name`, or `mood` where relevant.
+4. **Handle Non-Music Talk:** If there is only small talk, ignore actions and return just a conversational `reply`.
+5. **Handle Missing Information:** If any required parameter is missing for any action, return one follow-up slot-filling question as the top-level `reply`, and do NOT return the `actions` array.
+6. **Use Conversation History:** If the user's current message refers to context from previous dialog, infer those as parameters for the respective action(s).
+7. **JSON Output Only:** Always respond with ONLY a JSON object as shown below (no extra text, markdown, or commentary).
 
-Available Actions: """ + ", ".join(action_keys) + """
-
-Respond in EXACTLY this JSON format. Do not add any extra text or explanations.
+Respond in this EXACT JSON format:
 {
   "intent": "...",
   "emotion": "...",
-  "action": "...",
-  "parameters": { "...": "..." },
-  "reply": "..."
+  "actions": [
+    {
+      "action": "...",
+      "parameters": { "...": "..." },
+      "reply": "..." // (Optional, for intermediate or per-action messages)
+    }
+    // ... may have one or more actions in this array.
+  ],
+  "reply": "..." // Final reply for the user
 }
 
+Available Actions: """ + ", ".join(action_keys) + """
+
 User said: """ f'"{user_text}"'
+
 
     if voice_emotion:
         prompt += f'\nDetected voice emotion: {voice_emotion}'
 
+    # --- CHANGE 2: API endpoint and headers for Gemini ---
+    # This is the CORRECT line
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+
     headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json"
     }
 
+    # --- CHANGE 3: Request body format for Gemini ---
     body = {
-        "model": "mistralai/mistral-7b-instruct",
-        "messages": [{"role": "user", "content": prompt}]
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": prompt
+                    }
+                ]
+            }
+        ],
+        # Added generation and safety settings for more reliable JSON output
+        "generationConfig": {
+            "responseMimeType": "application/json", # Highly recommended for forcing JSON output
+            "temperature": 0.5,
+        },
+        "safetySettings": [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+        ]
     }
 
-    resp = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=body)
-
-    if resp.status_code != 200:
-        raise Exception(f"LLM call error: {resp.text}")
-
-    content = resp.json()["choices"][0]["message"]["content"]
-    
-    # Clean the response to ensure it's valid JSON
     try:
-        # Find the start and end of the JSON object
-        start = content.find('{')
-        end = content.rfind('}') + 1
-        if start != -1 and end != 0:
-            json_str = content[start:end]
-            return json.loads(json_str)
-        else:
-            raise ValueError("No JSON object found in the response")
-    except (json.JSONDecodeError, ValueError) as e:
-        print(f"LLM raw output was not valid JSON: {content}")
-        raise Exception(f"Invalid model output. Expected valid JSON but got an error: {e}")
+        resp = requests.post(url, headers=headers, json=body, timeout=60)
+        resp.raise_for_status() # This will raise an HTTPError for bad responses (4xx or 5xx)
+
+        # --- CHANGE 4: How the response content is parsed ---
+        # The raw text is located in a different path in the Gemini response
+        response_json = resp.json()
+        
+        # Check for content and parts before accessing them
+        if not response_json.get("candidates") or not response_json["candidates"][0].get("content") or not response_json["candidates"][0]["content"].get("parts"):
+            raise ValueError(f"Unexpected API response structure: {response_json}")
+            
+        content = response_json["candidates"][0]["content"]["parts"][0]["text"]
+        
+        # The JSON cleaning logic from your original code is still a good fallback,
+        # but with Gemini's `responseMimeType`, it often returns perfect JSON directly.
+        return json.loads(content)
+
+    except requests.exceptions.HTTPError as http_err:
+        # More specific error for API call failures
+        print(f"HTTP error occurred: {http_err}")
+        print(f"Response body: {resp.text}")
+        raise Exception(f"LLM API call failed with status {resp.status_code}")
+    except (json.JSONDecodeError, ValueError, KeyError) as e:
+        # Catches errors from parsing the JSON or if the response structure is wrong
+        print(f"LLM raw output was not valid or as expected. Error: {e}")
+        # It's helpful to log what the model actually returned for debugging
+        if 'resp' in locals():
+            print(f"Raw response from API: {resp.text}")
+        raise Exception("Invalid model output. Expected valid JSON but failed to parse.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        raise

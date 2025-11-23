@@ -1,6 +1,6 @@
 import logging
 from sqlalchemy.orm import Session
-from backend.services.LLM_service import call_mistral_agent
+from backend.services.LLM_service import call_gemini_agent
 from backend.services.music_action_service import MusicActionService
 from backend.services.session_manager import SessionManager
 from backend.utils.action_params import ACTION_REQUIRED_PARAMS
@@ -8,6 +8,7 @@ from backend.adapters.spotify_adapter import SpotifyAdapter
 from backend.utils.dev_token_manager import DevSpotifyTokenManager
 from backend.services.data_sync_service import get_new_access_token
 from backend.models.database_models import PlatformAccount
+from backend.utils.action_fallbacks import ACTION_FALLBACK_MAP
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,18 @@ class DialogManager:
         self.platform = platform
         self.platform_account_id = platform_account_id
         self.session_manager = SessionManager()
+
+    def normalize_action(self, raw_action: str, action_keys: list) -> str | None:
+        if not raw_action:
+            return None
+        raw_action_lower = raw_action.lower()
+        if raw_action_lower in action_keys:
+            return raw_action_lower
+        # fallback check only if not in action keys
+        for canonical, alternatives in ACTION_FALLBACK_MAP.items():
+            if raw_action_lower == canonical or raw_action_lower in alternatives:
+                return canonical
+        return None
 
     def _get_access_token(self):
         if self.platform_account_id:
@@ -49,20 +62,23 @@ class DialogManager:
         complete_params["platform_account_id"] = self.platform_account_id
         logger.debug("Using access_token ending with: %s", complete_params["access_token"][-5:])
         adapter = SpotifyAdapter(access_token=complete_params["access_token"])
+        current_user = adapter.sp.current_user()
+        complete_params["user_id"] = current_user['id']
 
         if action == "recommend_by_mood":
             liked_tracks = adapter.fetch_liked_tracks(limit=50)
             complete_params["tracks"] = liked_tracks
 
+        logger.debug(f"Action: {action}, Parameters sent to MusicActionService: {complete_params}")
         return MusicActionService.perform_music_action(action, complete_params, self.platform)
 
     def process_request(self, user_input: str, voice_emotion: str = None):
         action_keys = MusicActionService.get_action_keys(platform=self.platform)
 
-        # get pending context (this clears pending state by design)
+        # Get pending context (this clears pending state by design)
         pending_context = self.session_manager.get_pending_context(self.session_id)
 
-        # build an LLM prompt that includes recent history
+        # Build an LLM prompt that includes recent history
         turns = self.session_manager.get_turn_history(self.session_id)
         if turns:
             history_text = " | ".join([f"{m['role']}: {m['text']}" for m in turns])
@@ -72,7 +88,6 @@ class DialogManager:
 
         merged_parameters = {}
         if pending_context:
-            # merge parameters that were collected earlier
             merged_parameters = {**pending_context["pending_parameters"]}
             original_action = pending_context["pending_action"]
             prompt_input += (
@@ -80,35 +95,71 @@ class DialogManager:
                 f"Use the new message to complete any missing details."
             )
 
-        nlp_result = call_mistral_agent(prompt_input, voice_emotion, action_keys=action_keys)
+        nlp_result = call_gemini_agent(prompt_input, voice_emotion, action_keys=action_keys)
+        logger.debug(f"LLM returned: {nlp_result}")
 
-        action = nlp_result.get("action")
-        parameters = {**merged_parameters, **nlp_result.get("parameters", {})}
-        reply = nlp_result.get("reply", "Sorry, I'm not sure how to help with that.")
+        # Always expect an actions array in the new multi-action paradigm
+        actions = nlp_result.get("actions", [])
+        final_reply = nlp_result.get("reply", "Sorry, I'm not sure how to help with that.")
 
-        # record turns in history (after we compute reply for symmetry)
+        # Record turns in history (after computing reply for symmetry)
         self.session_manager.add_turn_history(self.session_id, role="user", text=user_input)
-        self.session_manager.add_turn_history(self.session_id, role="assistant", text=reply)
+        self.session_manager.add_turn_history(self.session_id, role="assistant", text=final_reply)
 
-        # unknown/invalid action -> chit-chat
-        if not action or action not in action_keys:
-            logger.warning(f"LLM returned an invalid or null action: '{action}'. Treating as chit-chat.")
-            return {"reply": reply, "executed": False}
+        if not actions:
+            logger.warning("LLM returned no actions. Treating as chit-chat/slot-filling.")
+            return {"reply": final_reply, "executed": False}
 
-        # validate required parameters (slot filling)
-        missing_params = self._check_missing_params(action, parameters)
-        if missing_params:
-            logger.info(f"Action '{action}' pending; missing parameters: {missing_params}")
-            # save pending with merged parameters + explicitly store missing list
-            self.session_manager.save_pending_context(self.session_id, action, parameters, missing_params)
-            return {"reply": reply, "executed": False, "status": "PENDING_INPUT"}
+        overall_results = []
+        pending_action_info = None  # To save all context if we hit missing params in any action
 
-        # execute action
-        try:
-            result = self._handle_music_action(action, parameters)
-            # clear only the structured state; keep history for continuity (will expire via TTL)
-            self.session_manager.clear_session_state(self.session_id)
-            return {"reply": reply, "executed": True, "result": result}
-        except Exception as e:
-            logger.error(f"Execution of action '{action}' failed: {e}")
-            return {"reply": str(e), "executed": False}
+        for i, act_entry in enumerate(actions):
+            # Normalize action key and merge parameters with any pending/fallback as needed
+            raw_action = act_entry.get("action")
+            action = self.normalize_action(raw_action, action_keys)
+            params = {**merged_parameters, **act_entry.get("parameters", {})}
+            logger.info(f"Executing action {action} with params: {params}")
+
+            # (Optional: Chaining from results of previous action)
+            # Could pass results from action i-1 as context if needed
+
+            if not action:
+                logger.warning(f"LLM returned an invalid or null action: '{raw_action}'. Skipping.")
+                continue
+
+            # Validate required parameters (slot filling)
+            missing_params = self._check_missing_params(action, params)
+            if missing_params:
+                logger.info(f"Action '{action}' missing parameters: {missing_params}")
+                # Save pending with merged parameters + explicitly store missing list for resumption
+                pending_action_info = {
+                    "pending_action": action,
+                    "pending_parameters": params,
+                    "missing_params": missing_params
+                }
+                break  # Stop further action execution on slot fill
+
+            try:
+                result = self._handle_music_action(action, params)
+                overall_results.append(result)
+                # Optionally clear just the slot-filling context, not turn history
+                self.session_manager.clear_session_state(self.session_id)
+            except Exception as e:
+                logger.error(f"Execution of action '{action}' failed: {e}")
+                overall_results.append({"error": str(e), "action": action})
+
+        # If missing parameters were found in any action, save state and exit early
+        if pending_action_info:
+            self.session_manager.save_pending_context(
+                self.session_id,
+                pending_action_info['pending_action'],
+                pending_action_info['pending_parameters'],
+                pending_action_info['missing_params']
+            )
+            return {
+                "reply": f"Please provide: {pending_action_info['missing_params'][0]} for action {pending_action_info['pending_action']}.",
+                "executed": False,
+                "status": "PENDING_INPUT"
+            }
+
+        return nlp_result
