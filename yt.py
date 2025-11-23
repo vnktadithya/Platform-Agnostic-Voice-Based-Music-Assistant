@@ -1,10 +1,14 @@
 # yt_oauth_setup.py
 
 from ytmusicapi import YTMusic, setup_oauth
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # 1. Replace these with your Google Cloud OAuth credentials
-CLIENT_ID = "374554694813-gt2ei08tktfovraeo9eqsq1tcmlsmrh2.apps.googleusercontent.com"
-CLIENT_SECRET = "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"
+CLIENT_ID = os.getenv("GOOGLE_CLOUD_CLIENT_ID")
+CLIENT_SECRET = os.getenv("GOOGLE_CLOUD_CLIENT_SECRET")
 
 # 2. Path where the OAuth tokens will be stored
 OAUTH_FILEPATH = "yt_oauth.json"
