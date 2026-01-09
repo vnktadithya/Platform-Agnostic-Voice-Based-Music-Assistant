@@ -1,0 +1,22 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Pytest / cache
+.pytest_cache/
+.cache
+
+# Env & secrets
+.env
+
+# Local databases
+*.db
+
+# Temp runtime files
+temp_audio/
+
+# Editor / OS
+.vscode/
+.DS_Store
+Thumbs.db
