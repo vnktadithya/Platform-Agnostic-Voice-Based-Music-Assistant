@@ -1,4 +1,5 @@
 import os
+import time
 import logging
 import requests
 from spotipy import Spotify
@@ -13,6 +14,7 @@ from backend.utils.normalize_text import normalize_query
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
+from backend.configurations.redis_client import redis_client
 
 load_dotenv()
 
@@ -28,7 +30,6 @@ class TokenAuthManager(SpotifyAuthBase):
         self.token = token
 
     def get_access_token(self, as_dict=False):
-        # The as_dict=False is important to match the base class signature
         return self.token
 
 class NoActiveDeviceException(Exception):
@@ -55,7 +56,23 @@ class SpotifyAdapter(MusicPlatformAdapter):
                 
         auth_manager = TokenAuthManager(access_token)
         self.sp = Spotify(auth_manager=auth_manager, requests_timeout=15)
-        logger.info("SpotifyAdapter initialized for ACTION")
+
+    def _update_song_history(self, platform_account_id: int, song_uri: str):
+        """
+        Maintains a history of size 2 in Redis: [current_song, previous_song]
+        """
+        if not song_uri or not platform_account_id:
+            return
+
+        key = f"spotify:history:{platform_account_id}"
+        
+        current_head = redis_client.lindex(key, 0)
+        if current_head == song_uri:
+            return 
+
+        redis_client.lpush(key, song_uri)
+        redis_client.ltrim(key, 0, 1)
+        logger.info(f"Updated song history for acc {platform_account_id}. History: {redis_client.lrange(key, 0, -1)}")
 
     def _get_active_device_id(self) -> str:
         """Finds an active device; raises NoActiveDeviceException if none are available."""
@@ -78,6 +95,25 @@ class SpotifyAdapter(MusicPlatformAdapter):
         except SpotifyException as e:
             logger.error(f"Could not retrieve devices from Spotify: {e}")
             raise NoActiveDeviceException("Failed to get device list from Spotify. The token may be invalid or expired.")
+
+    def get_active_device(self) -> dict | None:
+        try:
+            devices_info = self.sp.devices()
+            devices = devices_info.get('devices', []) if devices_info else []
+            
+            if not devices:
+                return None
+
+            # Return the first active one, or None
+            active_devices = [d for d in devices if d.get('is_active')]
+            if active_devices:
+                return active_devices[0]
+            
+            return devices[0]
+            
+        except Exception as e:
+            logger.warning(f"Error checking active device: {e}")
+            return None
 
 
     # === Auth Flow ===
@@ -156,12 +192,20 @@ class SpotifyAdapter(MusicPlatformAdapter):
         logger.debug(f"Attempting to skip track on device {device_id}")
         self.sp.next_track(device_id=device_id)
         logger.debug("Spotify 'next_track' command sent successfully.")
+        
+        # Wait for state update and return new track info
+        time.sleep(0.5)
+        return self.get_currently_playing_song()
 
     def previous_track(self):
         device_id = self._get_active_device_id()
         logger.debug(f"Attempting to go to previous track on device {device_id}")
         self.sp.previous_track(device_id=device_id)
         logger.debug("Spotify 'previous_track' command sent successfully.")
+
+        # Wait for state update and return new track info
+        time.sleep(0.5)
+        return self.get_currently_playing_song()
 
     def restart_current_track(self):
         device_id = self._get_active_device_id()
@@ -175,6 +219,62 @@ class SpotifyAdapter(MusicPlatformAdapter):
         self.sp.seek_track(seconds * 1000, device_id=device_id)
         logger.debug(f"Spotify 'seek_track' to {seconds * 1000}ms command sent successfully.")
 
+    def set_volume(self, volume_percent: int):
+        # Optimization: Do NOT fetch device_id first. Let Spotify target the active device.
+        # This halves the latency for volume ducking.
+        vol = max(0, min(100, volume_percent))
+        logger.debug(f"Attempting to set volume to {vol}% (auto-target active device)")
+        try:
+            self.sp.volume(vol)
+            logger.debug("Spotify 'volume' command sent successfully.")
+        except SpotifyException as e:
+            # Fallback: If no active device is found implicitly, try strict lookup
+            logger.warning(f"Direct volume set failed ({e}), attempting with explicit device ID.")
+            device_id = self._get_active_device_id()
+            self.sp.volume(vol, device_id=device_id)
+
+    def get_volume(self):
+        device_id = self._get_active_device_id()
+        try:
+            playback = self.sp.current_playback()
+            if playback and playback.get("device"):
+                return playback["device"].get("volume_percent", 80) 
+            return 80 
+        except Exception as e:
+            logger.warning(f"Failed to get current volume: {e}")
+            return 80
+
+    def change_volume(self, volume_change: int | None, mode: str):
+        """
+        Unified volume control.
+        :param volume_change: The specific number provided (e.g. 50, 20). Can be None.
+        :param mode: "absolute", "increase", or "decrease".
+        """
+        current_vol = self.get_volume()
+        new_vol = current_vol
+
+        if mode == "absolute":
+            if volume_change is not None:
+                new_vol = volume_change
+            else:
+                return "Please specify a volume level."
+        
+        elif mode == "increase":
+            amount = volume_change if volume_change is not None else 10
+            new_vol = current_vol + amount
+
+        elif mode == "decrease":
+            amount = volume_change if volume_change is not None else 10
+            new_vol = current_vol - amount
+
+        # Clamp between 0 and 100
+        new_vol = max(0, min(100, new_vol))
+
+        self.set_volume(new_vol)
+        return f"Volume set to {new_vol}%"
+
+
+
     def get_currently_playing_song(self):
         try:
             playback = self.sp.current_playback()
@@ -182,14 +282,23 @@ class SpotifyAdapter(MusicPlatformAdapter):
                 item = playback["item"]
                 song_name = item.get("name")
                 artist_names = ", ".join([artist["name"] for artist in item.get("artists", [])])
+                
+                image_url = None
+                if item.get("album") and item["album"].get("images"):
+                    image_url = item["album"]["images"][0]["url"]
+
                 return {
-                    "song_name": song_name,
-                    "artist": artist_names,
-                    "uri": item.get("uri")
+                    "status": "success",
+                    "track_info": {
+                        "title": song_name,
+                        "subtitle": artist_names,
+                        "image": image_url,
+                        "type": "song"
+                    }
                 }
             return None
         except Exception:
-            logger.error(f"Error fetching current playback")
+            logger.error(f"Error fetching current playback", exc_info=True)
             return None
 
 
@@ -208,7 +317,7 @@ class SpotifyAdapter(MusicPlatformAdapter):
         logger.info(f"Liking track on Spotify: {track['name']}")
         self.sp.current_user_saved_tracks_add([track_id])
 
-        # Ensure it's also stored in local DB
+        # Storing in local DB
         existing = db.query(UserLikedSong).filter_by(
             platform_account_id=platform_account_id,
             track_uri=track_uri
@@ -289,17 +398,23 @@ class SpotifyAdapter(MusicPlatformAdapter):
 
 
     # === Playlist Management ===
-    def create_playlist(self, db: Session, platform_account_id: int, user_id: str, name: str, description: str = ""):
+    def create_playlist(self, db: Session, platform_account_id: int, user_id: str, name: str, description: str = "", user_display_name: str = None):
         """Creates a playlist on Spotify and immediately caches it in the local DB."""
         logger.info(f"Creating playlist '{name}' on Spotify.")
         playlist_data = self.sp.user_playlist_create(user=user_id, name=name, description=description, public=True)
         
-        # ✅ Layer 1 in action: Immediately write to the local database
         if playlist_data:
             new_playlist = UserPlaylist(
                 platform_account_id=platform_account_id,
                 playlist_id=playlist_data['id'],
-                name=playlist_data['name']
+                name=playlist_data['name'],
+                meta_data={
+                    "normalized_name": normalize_query(playlist_data['name']),
+                    "description": playlist_data.get("description", ""),
+                    "owner": playlist_data.get("owner", {}).get("display_name") or user_display_name or user_id,
+                    "track_count": playlist_data.get("tracks", {}).get("total", 0),
+                    "image": playlist_data["images"][0]["url"] if playlist_data.get("images") else None
+                }
             )
             db.add(new_playlist)
             db.commit()
@@ -307,7 +422,6 @@ class SpotifyAdapter(MusicPlatformAdapter):
         return playlist_data
 
     def delete_user_playlist(self, db: Session, platform_account_id: int, playlist_name: str):
-        """Deletes a playlist by fuzzy matching its name, then unfollowing on Spotify and removing from DB."""
 
         if not playlist_name:
             raise ValueError("playlist_name is required and cannot be None or empty.")
@@ -333,17 +447,52 @@ class SpotifyAdapter(MusicPlatformAdapter):
             db.commit()
             logger.info(f"Successfully removed playlist '{matched_playlist.name}' from local cache.")
 
-    def add_tracks_to_playlist(self, playlist_id: str, uris: list):
+    def add_tracks_to_playlist(self, db: Session, platform_account_id: int, playlist_id: str, uris: list):
         self.sp.playlist_add_items(playlist_id, uris)
+        
+        # Update local DB track count
+        playlist = db.query(UserPlaylist).filter_by(
+            platform_account_id=platform_account_id, 
+            playlist_id=playlist_id
+        ).first()
+        
+        if playlist:
+            meta = dict(playlist.meta_data or {})
+            current_count = meta.get("track_count", 0)
+            meta["track_count"] = current_count + len(uris)
+            playlist.meta_data = meta
+            db.commit()
+            logger.info(f"Updated local track count for playlist {playlist_id} to {meta['track_count']}")
 
-    def remove_tracks_from_playlist(self, playlist_id: str, uris: list):
+
+    def remove_tracks_from_playlist(self, db: Session, platform_account_id: int, playlist_id: str, uris: list):
         self.sp.playlist_remove_all_occurrences_of_items(playlist_id, uris)
+
+        # Update local DB track count
+        playlist = db.query(UserPlaylist).filter_by(
+            platform_account_id=platform_account_id, 
+            playlist_id=playlist_id
+        ).first()
+        
+        if playlist:
+            meta = dict(playlist.meta_data or {})
+            current_count = meta.get("track_count", 0)
+            
+            try:
+                pl_data = self.sp.playlist(playlist_id, fields="tracks.total")
+                new_total = pl_data["tracks"]["total"]
+                meta["track_count"] = new_total
+                playlist.meta_data = meta
+                db.commit()
+                logger.info(f"Synced local track count for playlist {playlist_id} to {new_total}")
+            except Exception as e:
+                logger.warning(f"Failed to sync track count after remove: {e}")
 
     def reorder_playlist_tracks(self, playlist_id: str, range_start: int, insert_before: int):
         self.sp.playlist_reorder_items(playlist_id, range_start, insert_before)
 
     # === Music Search & Playback by Metadata ===
-    def search_track_uris(
+    def _resolve_track(
         self,
         db: Session,
         platform_account_id: int,
@@ -352,17 +501,14 @@ class SpotifyAdapter(MusicPlatformAdapter):
         song_name: str | None = None,
         artist_name: str | None = None,
         use_cache: bool = True,
-    ) -> list:
+    ):
         """
-        Search tracks by user query.
-
-        - If song_name and artist_name are provided, first try a strict cache
-        lookup on both fields in the same SearchCache row.
-        - Otherwise, fall back to existing fuzzy normalized_query + Spotify API.
+        Internal helper: Resolves tracks and returns (uris, track_info_dict).
         """
         norm_query = normalize_query(query)
+        track_info = None
 
-        # ----- 1) Strict song+artist cache lookup (for precise cases) -----
+        # Strict song+artist cache lookup
         if use_cache and song_name and artist_name:
             norm_song = normalize_query(song_name)
             norm_artist = normalize_query(artist_name)
@@ -377,11 +523,18 @@ class SpotifyAdapter(MusicPlatformAdapter):
                 cached_artist = normalize_query(meta.get("artist", "")) if meta.get("artist") else ""
                 if cached_song == norm_song and cached_artist == norm_artist:
                     logger.info("Strict SearchCache hit: song='%s', artist='%s' → %s", song_name, artist_name, rec.track_uri,)
-                    return [rec.track_uri]
+                    
+                    track_info = {
+                        "title": meta.get("track_name"),
+                        "subtitle": meta.get("artist"),
+                        "image": meta.get("image", None),
+                        "type": "song"
+                    }
+                    return [rec.track_uri], track_info
 
             logger.info("No strict cache hit for song='%s', artist='%s'; querying Spotify API directly", song_name, artist_name,)
 
-        # ----- 2) Original fuzzy normalized_query cache path -----
+        # Fuzzy normalized_query cache path
         elif use_cache:
             cache_records = db.query(SearchCache).filter(
                 SearchCache.platform_account_id == platform_account_id
@@ -389,10 +542,26 @@ class SpotifyAdapter(MusicPlatformAdapter):
 
             match, score = fuzzy_search_cache(norm_query, cache_records, threshold=75)
             if match:
-                logger.info("Fuzzy SearchCache hit: '%s' (score: %s)", match.normalized_query, score)
-                return [match.track_uri]
+                meta = match.meta_data or {}
+                if meta.get("image"):
+                    logger.info("Fuzzy SearchCache hit: '%s' (score: %s)", match.normalized_query, score)
+                    track_info = {
+                        "title": meta.get("track_name"),
+                        "subtitle": meta.get("artist"),
+                        "image": meta.get("image"),
+                        "type": "song"
+                    }
+                    return [match.track_uri], track_info
+                else:
+                    logger.info("Cache hit for '%s' but missing image. Invalidating incomplete cache entry.", norm_query)
+                    try:
+                        db.delete(match)
+                        db.commit()
+                    except Exception as e:
+                        logger.warning(f"Failed to delete incomplete cache entry: {e}")
+                        db.rollback()
 
-        # ----- 3) Spotify API search + cache top result -----
+        # Spotify API search + cache top result
         logger.warning("No SearchCache match for '%s'. Querying Spotify API.", query)
         results = self.sp.search(q=query, type="track", limit=limit)
         tracks = results.get("tracks", {}).get("items", [])
@@ -400,6 +569,19 @@ class SpotifyAdapter(MusicPlatformAdapter):
 
         if tracks:
             track = tracks[0]
+            logger.info("Spotify API Search Resolved: '%s' -> '%s' (URI: %s)", query, track.get('name'), track['uri'])
+            
+            image_url = None
+            if track.get("album") and track["album"].get("images"):
+                image_url = track["album"]["images"][0]["url"]
+
+            track_info = {
+                "title": track.get("name"),
+                "subtitle": track["artists"][0].get("name", "") if track.get("artists") else "",
+                "image": image_url,
+                "type": "song"
+            }
+
             db.add(
                 SearchCache(
                     platform_account_id=platform_account_id,
@@ -407,19 +589,30 @@ class SpotifyAdapter(MusicPlatformAdapter):
                     track_uri=track["uri"],
                     meta_data={
                         "track_name": track.get("name", ""),
-                        "artist": track["artists"][0].get("name", "")
-                        if track.get("artists")
-                        else "",
-                        "album_name": track["album"].get("name", "")
-                        if track.get("album")
-                        else "",
+                        "artist": track["artists"][0].get("name", "") if track.get("artists") else "",
+                        "album_name": track["album"].get("name", "") if track.get("album") else "",
                         "duration_ms": track.get("duration_ms", 0),
+                        "image": image_url 
                     },
                 )
             )
             db.commit()
             logger.info("Cached search result '%s' → '%s' in SearchCache.", norm_query, track.get("name"),)
+        
+        return uris, track_info
 
+    def search_track_uris(
+        self,
+        db: Session,
+        platform_account_id: int,
+        query: str,
+        limit: int = 1,
+        song_name: str | None = None,
+        artist_name: str | None = None,
+        use_cache: bool = True,
+    ) -> list:
+        # Wrapper to maintain backward compatibility (returns list of URIs)
+        uris, _ = self._resolve_track(db, platform_account_id, query, limit, song_name, artist_name, use_cache)
         return uris
 
     def play_by_query(
@@ -431,8 +624,9 @@ class SpotifyAdapter(MusicPlatformAdapter):
         song_name: str | None = None,
         artist_name: str | None = None,
         use_cache: bool = True,
+        resolve_only: bool = False,
     ):
-        uris = self.search_track_uris(
+        uris, track_info = self._resolve_track(
             db,
             platform_account_id,
             query,
@@ -441,8 +635,17 @@ class SpotifyAdapter(MusicPlatformAdapter):
             artist_name=artist_name,
             use_cache=use_cache,
         )
+        
         if uris:
-            self.play(uris=uris)
+            if not resolve_only:
+                logger.info("Attempting to play URIs: %s", uris)
+                self.play(uris=uris)
+                if uris:
+                    self._update_song_history(platform_account_id, uris[0])
+            return {"status": "success", "track_info": track_info}
+        else:
+            logger.warning("No URIs found for query: %s", query)
+            return {"status": "error", "message": "No tracks found"}
 
 
     def fetch_user_playlists(self) -> list:
@@ -461,13 +664,13 @@ class SpotifyAdapter(MusicPlatformAdapter):
                 
         return all_playlists
     
-    def play_playlist_by_name(self, db: Session, platform_account_id: int, playlist_name: str):
+    def play_playlist_by_name(self, db: Session, platform_account_id: int, playlist_name: str, resolve_only: bool = False):
         """
         Plays a playlist by name using fuzzy match in DB first,
         then falling back to Spotify API. Uses context_uri with playlist ID
         for correct playback via Spotify API.
         """
-        norm_playlist_name = normalize_query(playlist_name)  # Normalizing user input
+        norm_playlist_name = normalize_query(playlist_name)
 
         playlists = db.query(UserPlaylist).filter(
             UserPlaylist.platform_account_id == platform_account_id
@@ -496,9 +699,14 @@ class SpotifyAdapter(MusicPlatformAdapter):
 
         playlist_id = None
         playlist_display_name = playlist_name
+        playlist_image = None
+        
         if match:
             playlist_id = match.playlist_id
             playlist_display_name = match.name
+            if match.meta_data and isinstance(match.meta_data, dict):
+                playlist_image = match.meta_data.get("image")
+            
             logger.info(f"Found playlist via fuzzy match in DB: '{playlist_display_name}' (score: {score})")
         else:
             logger.warning(f"No DB match for '{playlist_name}'. Falling back to Spotify API search...")
@@ -510,12 +718,14 @@ class SpotifyAdapter(MusicPlatformAdapter):
             playlist_id = playlist_data["id"]
             playlist_display_name = playlist_data.get("name", "")
             owner_id = playlist_data.get("owner", {}).get("id")
+            
+            if playlist_data.get("images"):
+                playlist_image = playlist_data["images"][0]["url"]
 
             current_user = self.sp.current_user()
             current_user_id = current_user.get("id")
 
             if owner_id == current_user_id:
-                # Safe to cache — user owns this playlist
                 normalized_name = normalize_query(playlist_display_name)
 
                 # Cache new playlist in DB
@@ -528,18 +738,30 @@ class SpotifyAdapter(MusicPlatformAdapter):
                         "description": playlist_data.get("description", ""),
                         "owner": playlist_data.get("owner", {}).get("display_name", ""),
                         "track_count": playlist_data.get("tracks", {}).get("total", 0),
+                        "image": playlist_image
                     }
                 ))
                 db.commit()
                 logger.info(f"Cached new playlist '{playlist_display_name}' from Spotify API into DB.")
 
-        # Use context_uri to play playlist by ID to avoid unsupported URI kind error
-        device_id = self._get_active_device_id()
-        context_uri = f"spotify:playlist:{playlist_id}"
-        logger.info(f"Playing playlist '{playlist_display_name}' using context URI: {context_uri} on device {device_id}")
-        self.sp.start_playback(device_id=device_id, context_uri=context_uri)
+        if not resolve_only:
+            # Use context_uri to play playlist by ID to avoid unsupported URI kind error
+            device_id = self._get_active_device_id()
+            context_uri = f"spotify:playlist:{playlist_id}"
+            logger.info(f"Playing playlist '{playlist_display_name}' using context URI: {context_uri} on device {device_id}")
+            self.sp.start_playback(device_id=device_id, context_uri=context_uri)
+        
+        return {
+            "status": "success",
+            "track_info": {
+                "title": playlist_display_name,
+                "subtitle": "Spotify Playlist",
+                "type": "playlist",
+                "image": playlist_image
+            }
+        }
 
-
+    
     
     def resolve_playlist_id(self, db: Session, platform_account_id: int, playlist_name: str) -> str:
         """Resolve a playlist_name into a Spotify playlist_id (DB first, fallback API)."""

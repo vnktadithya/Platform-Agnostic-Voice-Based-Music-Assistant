@@ -11,8 +11,8 @@ class NotSupportedError(Exception):
 class MusicPlatformAdapter(ABC):
     """
     Abstract adapter for all music services.
-    Implement/override only what your platform supports.
-    Methods should raise NotSupportedError or return a dict with 'supported': False when not available!
+    Subclasses should implement methods for supported features.
+    Unsupported methods should raise NotSupportedError.
     """
 
     # ----------- Initialization and Auth -----------
@@ -126,6 +126,7 @@ class MusicPlatformAdapter(ABC):
             "playlist_creation": False, 
             "voice_control": False,
         }
+        
         # If subclass has defined CAPABILITIES dict, merge those values
         if hasattr(cls, "CAPABILITIES") and isinstance(cls.CAPABILITIES, dict):
             merged = default_caps.copy()

@@ -11,7 +11,6 @@ class OnboardRequest(BaseModel):
     platform_name: str
     platform_user_id: str
     refresh_token: str
-    # You could add email, name, etc. here in the future
     
 @router.post("/onboard")
 def onboard_user(request: OnboardRequest, db: Session = Depends(get_db)):
@@ -47,10 +46,11 @@ def onboard_user(request: OnboardRequest, db: Session = Depends(get_db)):
             message = "User onboarded successfully. Library synchronization has started in the background."
         else:
             message = "User already exists. Triggering a library refresh."
-            # Optionally, you could trigger a sync here as well for returning users
+            # Trigger a sync here for returning users
             sync_spotify_library.delay(account.id)
 
         return {"status": "success", "message": message, "platform_account_id": account.id}
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to onboard user: {e}")
+        

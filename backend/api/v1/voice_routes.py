@@ -10,7 +10,6 @@ router = APIRouter(prefix="/voice", tags=["Voice I/O"])
 stt_service = SpeechToTextService()
 tts_service = TextToSpeechService()
 
-
 @router.post("/stt")
 async def speech_to_text(audio: UploadFile = File(...)):
     try:
@@ -33,3 +32,20 @@ async def text_to_speech(text: str):
         return {"audio_path": output_audio_path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"TTS error: {str(e)}")
+
+from fastapi.responses import StreamingResponse
+import io
+
+@router.post("/tts/stream")
+async def text_to_speech_stream(text: str):
+    """
+    Synthesizes speech and streams the audio bytes directly (no file write).
+    """
+    try:
+        audio_bytes = tts_service.synthesize_speech(text)
+        return StreamingResponse(
+            io.BytesIO(audio_bytes), 
+            media_type="audio/wav"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Streaming TTS error: {str(e)}")

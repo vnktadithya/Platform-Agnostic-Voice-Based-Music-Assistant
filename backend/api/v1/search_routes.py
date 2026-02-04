@@ -1,7 +1,6 @@
-# backend/api/v1/search_routes.py
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
-from backend.configurations.database import get_db  # ✅ shared dependency
+from backend.configurations.database import get_db
 from backend.adapters.spotify_adapter import SpotifyAdapter
 from backend.models.database_models import PlatformAccount, SearchCache
 from backend.services.data_sync_service import get_valid_spotify_access_token
@@ -37,6 +36,7 @@ def search_tracks(
         .first()
     )
     if cached:
+        logger.info("SearchCache hit for query='%s'", norm_q)
         return {"status": "ok", "results": [{"track_uri": cached.track_uri}], "meta": cached.meta_data}
 
     # 2) Cache miss -> query Spotify

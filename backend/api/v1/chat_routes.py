@@ -1,17 +1,19 @@
-#chat_routes.py:
-
 import uuid
 import os
 import base64
-from fastapi import APIRouter, File, UploadFile, HTTPException, Query, Depends
+import wave
+import io
+import logging
+import asyncio
+from fastapi import APIRouter, File, UploadFile, HTTPException, Query, Depends, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from fastapi.responses import JSONResponse
 from backend.configurations.database import get_db
 from backend.services.speech_to_text import SpeechToTextService
 from backend.services.text_to_speech import TextToSpeechService
 from backend.services.dialog_manager import DialogManager
-import logging
+from backend.utils.custom_exceptions import DeviceNotFoundException, ExternalAPIError, AuthenticationError
 
 router = APIRouter(prefix="/chat", tags=["Chat NLP"])
 logger = logging.getLogger(__name__)
@@ -21,35 +23,63 @@ os.makedirs(TEMP_DIR, exist_ok=True)
 
 class TextInput(BaseModel):
     text: str
-    session_id: str | None = None  # Optional session_id from client
+    session_id: str | None = None
     platform_account_id: int | None = None
-
-
-def attach_tts(reply_text: str) -> str:
-    """Convert reply to speech and return as base64 string."""
-    try:
-        audio_bytes = TextToSpeechService.synthesize_speech(reply_text)
-        return base64.b64encode(audio_bytes).decode("utf-8")
-    except Exception:
-        return None
     
+
+class ActionPayload(BaseModel):
+    action: str
+    parameters: dict
+    platform: str
+    session_id: str | None = None
+    platform_account_id: int
+
+@router.post("/execute")
+async def execute_action(
+    payload: ActionPayload,
+    db: Session = Depends(get_db)
+):
+    """Endpoint for Client to trigger an action (e.g. after TTS ends)."""
+    logger.info(f"Client triggering action: {payload.action}")
+    
+    session_id = resolve_session_id(payload.session_id)
+    dm = DialogManager(db, session_id, payload.platform, platform_account_id=payload.platform_account_id)
+    
+    try:
+        result = await dm.execute_action(payload.action, payload.parameters)
+        return {"status": "success", "result": result}
+    except (DeviceNotFoundException, ExternalAPIError, AuthenticationError):
+        # Let these bubble up to the global handler in main.py
+        raise 
+    except Exception as e:
+        logger.error(f"Failed to execute triggered action {payload.action}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 def resolve_session_id(provided: str | None) -> str:
     return provided or str(uuid.uuid4())
 
 
+
 @router.post("/process_text")
-def process_chat_text(
+async def process_chat_text(
+    request: Request,
     text_input: TextInput,
     platform: str = Query(..., description="Platform name (spotify, soundcloud, etc.)"),
     db: Session = Depends(get_db)
 ):
     
     platform = platform.strip().lower()
-    
+
+    # SECURE SESSION CHECK
+    secure_account_id = request.session.get(f"{platform}_account_id")
+    if secure_account_id:
+        text_input.platform_account_id = secure_account_id
+        logger.info(f"Using secure session account_id: {secure_account_id}")
+
     if not text_input.platform_account_id:
         raise HTTPException(
             status_code=400,
-            detail="platform_account_id is required for backend testing"
+            detail="platform_account_id is required (please login first)"
         )
     
     logger.info(
@@ -61,30 +91,28 @@ def process_chat_text(
     try:
         session_id = resolve_session_id(text_input.session_id) 
         dialog_manager = DialogManager(db, session_id, platform, platform_account_id=text_input.platform_account_id)
-        result = dialog_manager.process_request(text_input.text)
-
-        reply_text = result.get("reply", "I'm not sure how to respond.")
-        audio_b64 = attach_tts(reply_text)
+        
+        result = await dialog_manager.process_request(text_input.text)
 
         response = {
             "session_id": session_id,
-            "reply": reply_text,
             **result
         }
-        if audio_b64:
-            response["audio_base64"] = audio_b64
-
         return JSONResponse(content=response)
+
     except ValueError as e:
         logger.error("DialogManager error: %s", e)
         raise HTTPException(status_code=400, detail=str(e))
+    except (DeviceNotFoundException, ExternalAPIError, AuthenticationError):
+        raise
     except Exception as e:
         logger.exception("Unexpected error in /process_text")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/process_voice")
-def process_chat_voice(
+async def process_chat_voice(
+    request: Request,
     audio: UploadFile = File(...),
     session_id: str | None = Query(None, description="Session ID for multi-turn conversation"),
     platform: str = Query(..., description="Platform name (spotify, soundcloud, etc.)"),
@@ -94,12 +122,17 @@ def process_chat_voice(
     
     platform = platform.strip().lower()
     session_id = resolve_session_id(session_id)
-    temp_filepath = os.path.join(TEMP_DIR, f"{session_id}.wav")
+
+    # SECURE SESSION CHECK
+    secure_account_id = request.session.get(f"{platform}_account_id")
+    if secure_account_id:
+        platform_account_id = secure_account_id
+        logger.info(f"Using secure session account_id: {secure_account_id}")
 
     if not platform_account_id:
         raise HTTPException(
             status_code=400,
-            detail="platform_account_id is required for backend testing"
+            detail="platform_account_id is required (please login first)"
         )
 
     logger.info(
@@ -107,45 +140,26 @@ def process_chat_voice(
         platform,
         platform_account_id
     )
-    
-    try:
-        with open(temp_filepath, "wb") as f:
-            f.write(audio.file.read())
 
-        transcribed_text = SpeechToTextService.transcribe_audio(temp_filepath)
+    try:
+        loop = asyncio.get_running_loop()
+        transcribed_text = await loop.run_in_executor(None, SpeechToTextService.transcribe_audio, audio.file)
+        
+        logger.info(f"\n\n🎤 STT OUTPUT: {transcribed_text}\n") 
         
         dialog_manager = DialogManager(db, session_id, platform, platform_account_id=platform_account_id)
-        result = dialog_manager.process_request(transcribed_text)
-
-        reply_text = result.get("reply", "I'm not sure how to respond.")
-        audio_b64 = attach_tts(reply_text)
+        result = await dialog_manager.process_request(transcribed_text)
 
         response = {
             "session_id": session_id,
-            "reply": reply_text,
             "input_text": transcribed_text, 
             **result
         }
-        if audio_b64:
-            response["audio_base64"] = audio_b64
 
         return JSONResponse(content=response)
 
+    except (DeviceNotFoundException, ExternalAPIError, AuthenticationError):
+        raise
     except Exception as e:
+        logger.error(f"Voice processing invalid error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if os.path.exists(temp_filepath):
-            os.remove(temp_filepath)
-
-
-"""
-IMPORTANT:
-This API currently accepts internal identifiers (session_id, platform_account_id)
-for backend-only testing.
-
-These MUST be removed during frontend integration:
-- session_id → managed by frontend
-- platform_account_id → derived from authenticated user
-
-Users must NEVER provide internal IDs.
-"""
