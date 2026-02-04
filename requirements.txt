@@ -29,3 +29,5 @@ unittest
 re
 unicodedata
 starlette
+python-socketio
+psycopg2-binary
