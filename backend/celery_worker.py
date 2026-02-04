@@ -20,16 +20,18 @@ logger.info("Celery worker initialized with Redis broker")
 
 celery_app.conf.update(
     task_track_started=True,
+    beat_schedule_filename="tmp/celerybeat-schedule"
 )
 
 celery_app.conf.beat_schedule = {
     'periodic-spotify-refresh-every-6h': {
         'task': 'refresh_all_spotify_libraries',
-        'schedule': 86400,  # 1 day (in seconds)
+        'schedule': 21600,  # 6 hours (in seconds)
     },
-}
-
-celery_app.conf.beat_schedule = {
+    'periodic-soundcloud-refresh-every-6h': {
+        'task': 'refresh_all_soundcloud_libraries',
+        'schedule': 21600,  # 6 hours (in seconds)
+    },
     'purge-search-cache-daily': {
         'task': 'purge_expired_search_cache',  # <-- use the registered task name
         'schedule': crontab(hour=2, minute=0),  # every day at 2 AM UTC

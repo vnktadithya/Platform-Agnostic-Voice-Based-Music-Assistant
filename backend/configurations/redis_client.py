@@ -25,9 +25,7 @@ class RedisClient:
                 logger.info("Successfully connected to Redis.")
             except redis.exceptions.ConnectionError as e:
                 logger.error(f"Could not connect to Redis: {e}. Please ensure your Redis server is running.")
-                # Raise the error to stop the app from starting in a broken state.
                 raise e
         return cls._client
 
-# This line ensures that anywhere we import 'redis_client', we get the same instance.
 redis_client = RedisClient.get_client()
