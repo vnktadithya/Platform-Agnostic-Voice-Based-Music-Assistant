@@ -2,7 +2,6 @@
   <img src="docs/assets/logo.png" alt="SAM Logo" width="200" height="200" />
   
   # SAM: Self Adaptive Music Intelligence
-  ### The 8-Month Journey to the Ultimate Voice Assistant
   
   [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
   [![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
@@ -12,20 +11,20 @@
   [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
   <p align="center">
-    <b>A Platform-Agnostic, Voice-Controlled, 3D Music Assistant tailored for the future.</b><br />
-    Experience music like never before with immersive visuals and low-latency intelligence.
+    <b>A Platform-Agnostic, Voice-Controlled, 3D Music Assistant.</b><br />
+    Experience music with immersive visuals and low-latency intelligence.
   </p>
 </div>
 
 ---
 
-## 🚀 Why SAM?
+## 🚀 Overview
 
-SAM isn't just a voice assistant; it's a **living, breathing interface** for your music. Born from an intensive 8-month development journey, SAM bridges the gap between static playlists and dynamic, conversational interaction.
+SAM is a voice assistant designed as a dynamic interface for music control. It bridges the gap between static playlists and conversational interaction using advanced LLM integration and real-time 3D visualization.
 
-- **Worth the Wait**: Every line of code, from the 3D particle systems to the backend orchestration, has been crafted to deliver a premium experience.
-- **True Intelligence**: Powered by **Groq**, SAM understands context, manages conversations, and executes complex commands instantly.
-- **Visual Symphony**: Your voice doesn't just trigger an action; it ripples through a 3D digital world, creating a feedback loop that feels tangible.
+- **True Intelligence**: Powered by **Groq**, SAM understands context, manages conversations, and executes commands instantly.
+- **Visual Feedback**: Voice inputs trigger real-time reactions in a 3D particle system, creating a tangible feedback loop.
+- **Extensible Architecture**: Built to control multiple platforms (Spotify, SoundCloud) with a modular adapter pattern.
 
 ---
 
@@ -33,17 +32,17 @@ SAM isn't just a voice assistant; it's a **living, breathing interface** for you
 
 | Feature | Description |
 | :--- | :--- |
-| **🗣️ Conversational AI** | Natural language understanding via **Groq (Llama 3)**. SAM speaks back, understands context, and even handles non-music queries. |
-| **🎵 Platform Agnostic** | Seamlessly controls **Spotify** and **SoundCloud**. Designed to be easily extensible to Apple Music, YouTube Music, and more. |
-| **🌌 Immersive 3D UI** | Built with **React Three Fiber**. A stunning digital orb and particle system that reacts to your voice and music energy. |
-| **⚡ Low Latency** | Optimized architecture using **Redis** and **WebSockets** for real-time feedback and instant playback control. |
-| **🔄 Smart Sync** | Background **Celery workers** keep your libraries, playlists, and liked songs in sync across all platforms. |
+| **🗣️ Conversational AI** | Natural language understanding via **Groq (Llama 3)**. Handles context-aware queries and music commands. |
+| **🎵 Platform Agnostic** | Seamlessly controls **Spotify** and **SoundCloud**. modular design allows easy integration of new providers. |
+| **🌌 Immersive 3D UI** | Built with **React Three Fiber**. A digital orb and particle system that reacts to voice activity and music energy. |
+| **⚡ Low Latency** | Optimized architecture using **Redis** and **WebSockets** for instant playback control. |
+| **🔄 Smart Sync** | Background **Celery workers** keep libraries, playlists, and liked songs in sync across platforms. |
 
 ---
 
 ## 🏗️ Architecture
 
-SAM follows a robust, industry-grade architecture designed for scalability and performance.
+SAM follows a clean architecture designed for scalability and performance.
 
 <div align="center">
   <img src="docs/assets/architecture.png" alt="SAM Architecture Diagram" width="800" />
@@ -78,7 +77,7 @@ SAM follows a robust, industry-grade architecture designed for scalability and p
 
 ## 🚀 Getting Started
 
-Follow these steps to set up your own personal SAM instance.
+Follow these steps to set up a local instance.
 
 ### Prerequisites
 *   **Python** 3.10+
@@ -103,7 +102,7 @@ npm install
 
 ### 2. Configuration (.env)
 
-Create a `.env` file in the root directory. You will need credentials from various platforms.
+Create a `.env` file in the root directory.
 
 > [!IMPORTANT]
 > The project relies on these keys for functionality.
@@ -138,10 +137,23 @@ SOUNDCLOUD_REDIRECT_URI="http://localhost:8000/v1/adapter/soundcloud/callback"
 
 ### 3. Running the Project
 
-**1. Start Redis Server** (Ensure it's running in the background)
-```bash
-redis-server
-```
+**1. Start Redis Server**
+
+*   **1.1 Windows (WSL)**: 
+    ```bash
+    sudo service redis-server start
+    ```
+    *Note: Redis must be run inside WSL.*
+
+*   **1.2 macOS**:
+    ```bash
+    brew services start redis
+    ```
+
+*   **1.3 Linux**:
+    ```bash
+    sudo systemctl start redis
+    ```
 
 **2. Start Backend (API)**
 ```bash
@@ -167,7 +179,7 @@ cd frontend
 npm run dev
 ```
 
-Visit `http://localhost:5173` and start talking to SAM!
+Visit `http://localhost:5173`.
 
 ---
 
@@ -178,7 +190,3 @@ Visit `http://localhost:5173` and start talking to SAM!
 *   **[Adding New Platforms](ADDING_NEW_PLATFORMS.md)**: Integrating Apple Music, YouTube, and more.
 
 ---
-
-<p align="center">
-  Made with ❤️ by [Your Name]
-</p>
