@@ -7,8 +7,7 @@ logger = logging.getLogger(__name__)
 
 def purge_old_cache_entries(db: Session, days: int = 30) -> int:
     """
-    Deletes SearchCache entries older than `days`. Returns count of deleted records.
-    Pure function — does not close the DB session.
+    Deletes SearchCache entries older than 'days'. Returns count of deleted records.
     """
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     deleted_count = db.query(SearchCache).filter(SearchCache.timestamp < cutoff).delete()

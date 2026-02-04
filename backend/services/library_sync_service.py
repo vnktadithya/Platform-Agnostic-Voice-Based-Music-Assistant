@@ -41,7 +41,8 @@ def sync_user_library(db: Session, platform_account: PlatformAccount, adapter):
                     "normalized_name": normalized_name,
                     "description": playlist.get("description", ""),
                     "owner": playlist.get("owner", {}).get("display_name", ""),
-                    "track_count": playlist.get("tracks", {}).get("total", 0)
+                    "track_count": playlist.get("tracks", {}).get("total", 0),
+                    "image": playlist.get("images")[0]["url"] if playlist.get("images") else None
                 }
             ))
     if new_playlists:

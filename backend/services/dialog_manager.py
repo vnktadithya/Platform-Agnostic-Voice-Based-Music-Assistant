@@ -1,13 +1,19 @@
 import logging
+import asyncio
+import base64
 from sqlalchemy.orm import Session
-from backend.services.LLM_service import call_gemini_agent
+from backend.services.LLM_service import call_llm_agent
 from backend.services.music_action_service import MusicActionService
+from backend.services.text_to_speech import TextToSpeechService
 from backend.services.session_manager import SessionManager
 from backend.utils.action_params import ACTION_REQUIRED_PARAMS
 from backend.adapters.spotify_adapter import SpotifyAdapter
-from backend.services.data_sync_service import get_valid_spotify_access_token
+from backend.services.data_sync_service import get_valid_spotify_access_token, get_valid_soundcloud_access_token
 from backend.models.database_models import PlatformAccount, InteractionLog
 from backend.utils.action_fallbacks import ACTION_FALLBACK_MAP
+from backend.socket_manager import emit_state 
+from backend.utils.custom_exceptions import ExternalAPIError, DeviceNotFoundException 
+from backend.utils.error_translator import get_user_friendly_error_message
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +42,6 @@ class DialogManager:
         """
         Return credentials needed by the platform adapter, based on self.platform
         and self.platform_account_id.
-
-        For spotify:
-          { "platform": "spotify", "access_token": "<...>" }
         """
         
         if self.platform_account_id is not None:
@@ -53,6 +56,10 @@ class DialogManager:
             if self.platform == "spotify":
                 access_token = get_valid_spotify_access_token(self.db, account)
                 return {"platform": "spotify", "credentials" : {"access_token": access_token}}
+            
+            if self.platform == "soundcloud":
+                access_token = get_valid_soundcloud_access_token(self.db, account)
+                return {"platform": "soundcloud", "credentials" : {"access_token": access_token}}
 
             raise ValueError(f"Unsupported platform: {self.platform}")
 
@@ -64,9 +71,23 @@ class DialogManager:
 
     def _check_missing_params(self, action: str, parameters: dict) -> list:
         required_params = ACTION_REQUIRED_PARAMS.get(action, [])
-        return [p for p in required_params if p not in parameters or not parameters[p]]
+        missing = []
+        for p in required_params:
+            # Check for optional param marker '?'
+            is_optional = p.endswith("?")
+            clean_p = p.rstrip("?")
+            
+            if not is_optional:
+                # Value must be present and truthy (or at least not None/empty)
+                if clean_p not in parameters or parameters[clean_p] is None:
+                    missing.append(clean_p)
+        
+        return missing
 
-    def _handle_music_action(self, action: str, parameters: dict):
+    async def _handle_music_action(self, action: str, parameters: dict):
+        """
+        Executes a music action via the music service.
+        """
         complete_params = dict(parameters)
         complete_params["db_session"] = self.db
         complete_params["platform_account_id"] = self.platform_account_id
@@ -98,17 +119,32 @@ class DialogManager:
             adapter = SpotifyAdapter(access_token=access_token)
             current_user = adapter.sp.current_user()
             complete_params["user_id"] = current_user["id"]
+            complete_params["user_display_name"] = current_user.get("display_name")
+
+        elif platform == "soundcloud":
+             complete_params["access_token"] = access_token
+             # SoundCloud adapter handles user resolution internally
+             pass
 
         else:
             raise ValueError(f"Unsupported platform: {platform}")
 
+        # Execute in thread executor to prevent blocking the async loop as adapter calls are synchronous 'requests'
+        loop = asyncio.get_running_loop()
+        
         logger.debug(f"Action: {action}, Parameters sent to MusicActionService: {complete_params}")
-        return MusicActionService.perform_music_action(action, platform, complete_params)
+        
+        return await loop.run_in_executor(
+            None, 
+            MusicActionService.perform_music_action, 
+            action, 
+            platform, 
+            complete_params
+        )
     
     def _log_interaction(self, user_input: str, llm_response: dict, final_action: str | None):
         """
         Persist a single user ↔ LLM interaction for future analysis / fine-tuning.
-        Logging must NEVER break the user flow.
         """
         try:
             log = InteractionLog(
@@ -125,16 +161,33 @@ class DialogManager:
             logger.error(f"Failed to log interaction: {e}")
 
 
-    def process_request(self, user_input: str):
+    async def execute_action(self, action: str, params: dict):
+        """Public wrapper to execute a specific action (used for deferred playback)."""
+        logger.info(f"Executing deferred action: {action}")
+        return await self._handle_music_action(action, params)
+
+    async def process_request(self, user_input: str):
+        # Notify Frontend: Thinking
+        await emit_state("THINKING", "Processing intent...")
+
         action_keys = MusicActionService.get_action_keys(platform=self.platform)
 
-        # Get pending context (this clears pending state by design)
+        # Get pending context
         pending_context = self.session_manager.get_pending_context(self.session_id)
 
-        # Build an LLM prompt that includes recent history
+        # Build Prompt
         turns = self.session_manager.get_turn_history(self.session_id)
         if turns:
-            history_text = " | ".join([f"{m['role']}: {m['text']}" for m in turns])
+            history_parts = []
+            for i, m in enumerate(turns):
+                if not isinstance(m, dict):
+                    continue
+                role = m.get('role')
+                text = m.get('text')
+                if role and text:
+                    history_parts.append(f"{role}: {text}")
+            
+            history_text = " | ".join(history_parts)
             prompt_input = f"Conversation so far: {history_text}\nUser now: {user_input}"
         else:
             prompt_input = user_input
@@ -148,59 +201,174 @@ class DialogManager:
                 f"Use the new message to complete any missing details."
             )
 
-        nlp_result = call_gemini_agent(prompt_input, action_keys=action_keys)
+        loop = asyncio.get_running_loop()
+        
+        # Step 1: Intent Recognition (LLM)
+        nlp_result = await loop.run_in_executor(None, call_llm_agent, prompt_input, True, action_keys)
+        
         logger.debug(f"LLM returned: {nlp_result}")
+        logger.debug(f"LLM Response: {nlp_result}")
 
         actions = nlp_result.get("actions", [])
         final_reply = nlp_result.get("reply", "Sorry, I'm not sure how to help with that.")
 
-        # Record turns in history (after computing reply for symmetry)
+        # Update History
         self.session_manager.add_turn_history(self.session_id, role="user", text=user_input)
         self.session_manager.add_turn_history(self.session_id, role="assistant", text=final_reply)
 
         if not actions:
-            logger.warning("LLM returned no actions. Treating as chit-chat/slot-filling.")
+            logger.info("LLM returned no actions. Proceeding with conversation only.")
+            
+            # Generate TTS for simple reply
+            try:
+                audio_bytes = await loop.run_in_executor(None, TextToSpeechService.synthesize_speech, final_reply)
+                if audio_bytes:
+                    return {"reply": final_reply, "audio_base64": base64.b64encode(audio_bytes).decode('utf-8'), "executed": False}
+            except Exception as e:
+                logger.error(f"TTS Failed: {e}")
+            
             return {"reply": final_reply, "executed": False}
 
-        overall_results = []
-        pending_action_info = None  # To save all context if we hit missing params in any action
-        final_action_executed = None
+        # Task A: Generate TTS (Optimistic)
+        async def generate_tts(text):
+            try:
+                if not text: return None
+                return await loop.run_in_executor(None, TextToSpeechService.synthesize_speech, text)
+            except Exception as e:
+                logger.error(f"TTS Generation failed: {e}")
+                return None
 
-        for i, act_entry in enumerate(actions):
-            # Normalize action key and merge parameters with any pending/fallback as needed
+        tts_task = asyncio.create_task(generate_tts(final_reply))
+
+        # Task B: Process Actions
+        # ... logic extraction ...
+        IMMEDIATE_ACTIONS = [
+            'pause_song', 'skip_song', 'previous_song', 'skip_time', 
+            'like_song', 'remove_from_liked_songs', 'delete_playlist', 
+            'remove_from_playlist', 'reorder_playlist', 'add_to_playlist', 
+            'create_playlist', 'get_current_song', 'set_volume',
+            'increase_volume', 'decrease_volume'
+        ]
+
+        overall_results = []
+        pending_action_info = None 
+        final_action_executed = None
+        command_payload = None 
+        
+        error_occurred = False
+        error_msg = ""
+
+        # Processing Actions
+        for act_entry in actions:
             raw_action = act_entry.get("action")
             action = self.normalize_action(raw_action, action_keys)
             params = {**merged_parameters, **act_entry.get("parameters", {})}
-            logger.info("Executing action '%s' for platform_account_id=%s", action, self.platform_account_id)
+            
+            if not action: continue
 
-            if not action:
-                logger.warning(f"LLM returned an invalid or null action: '{raw_action}'. Skipping.")
-                continue
-
-            # Validate required parameters (slot filling)
+            # Validate slot filling
             missing_params = self._check_missing_params(action, params)
             if missing_params:
-                logger.info(f"Action '{action}' missing parameters: {missing_params}")
-                # Save pending with merged parameters + explicitly store missing list for resumption
                 pending_action_info = {
                     "pending_action": action,
                     "pending_parameters": params,
                     "missing_params": missing_params
                 }
-                break  # Stop further action execution on slot fill
+                # If missing some parameters, change the reply to ask for them.
+                final_reply = f"Please provide: {missing_params[0]} for action {action}."
+                error_occurred = True
+                break
 
             try:
-                result = self._handle_music_action(action, params)
-                overall_results.append(result)
+                if action in IMMEDIATE_ACTIONS:
+                    await emit_state("SPEAKING", f"Executing {action}...") 
+                    result = await self._handle_music_action(action, params)
+                    overall_results.append(result)
+                    final_action_executed = action
+                    
+                    # If the action returned a user-facing string (e.g., error message or confirmation),
+                    # let it override the LLM's optimistic reply.
+                    if isinstance(result, str) and result:
+                        final_reply = result
+                        error_occurred = True 
 
-                # Optionally clear just the slot-filling context, not turn history
-                final_action_executed = action
-                self.session_manager.clear_session_state(self.session_id)
+                    command_payload = {
+                        "type": action,
+                        "params": params,
+                        "timing": "IMMEDIATE"
+                    }
+                    self.session_manager.clear_session_state(self.session_id)
+                
+                else:
+                    meta_params = dict(params)
+                    meta_params["resolve_only"] = True
+                    try:
+                        meta_result = await self._handle_music_action(action, meta_params)
+                        if meta_result: overall_results.append(meta_result)
+                    except Exception as e:
+                        logger.warning(f"Metadata resolution warning: {e}")
+
+                    command_payload = {
+                        "type": action,
+                        "params": params,
+                        "timing": "AFTER_TTS" 
+                    }
+                    final_action_executed = action 
+
+
+            except DeviceNotFoundException as e:
+                # Handle device not found with user-friendly message
+                logger.error(f"Device not found during action execution: {e.message}")
+                user_friendly_msg = get_user_friendly_error_message(
+                    error_code="no_device",
+                    platform=self.platform,
+                    action=action,
+                    original_message=str(e)
+                )
+                final_reply = user_friendly_msg
+                error_occurred = True
+                error_msg = user_friendly_msg
+            
+            except ExternalAPIError as e:
+                # Handle API errors with user-friendly messages
+                logger.error(f"API error during action execution: {e.message}")
+                user_friendly_msg = e.user_friendly_message()
+                final_reply = user_friendly_msg
+                error_occurred = True
+                error_msg = user_friendly_msg
+            
             except Exception as e:
-                logger.error(f"Execution of action '{action}' failed: {e}")
-                overall_results.append({"error": str(e), "action": action})
+                logger.error(f"Action execution failed: {e}", exc_info=True)
+                final_reply = f"I encountered an error: {str(e)}"
+                error_occurred = True
+                error_msg = str(e)
 
-        # If missing parameters were found in any action, save state and exit early
+        # --- SYNC POINT ---
+        # Wait for TTS to finish
+        audio_bytes = None
+        
+        if not error_occurred and not pending_action_info:
+            # Optimistic case: All good.
+            audio_bytes = await tts_task
+        else:
+            # Failure/Change case: Cancel old TTS, generate new one.
+            tts_task.cancel()
+            try:
+                audio_bytes = await generate_tts(final_reply)
+            except Exception: pass
+
+        # Prepare Response
+        response_data = {
+            "reply": final_reply,
+            "action_outcome": "SUCCESS" if not pending_action_info and not error_occurred else ("PENDING" if pending_action_info else "ERROR"),
+            "command": command_payload,
+            "action_data": overall_results
+        }
+        
+        if audio_bytes:
+            response_data["audio_base64"] = base64.b64encode(audio_bytes).decode("utf-8")
+
+        # Handle Pending Context Save
         if pending_action_info:
             self.session_manager.save_pending_context(
                 self.session_id,
@@ -208,24 +376,9 @@ class DialogManager:
                 pending_action_info['pending_parameters'],
                 pending_action_info['missing_params']
             )
-            response = {
-                "reply": f"Please provide: {pending_action_info['missing_params'][0]} for action {pending_action_info['pending_action']}.",
-                "executed": False,
-                "status": "PENDING_INPUT"
-            }
+            response_data["status"] = "PENDING_INPUT"
+        else:
+             self._log_interaction(user_input, nlp_result, final_action_executed)
 
-            self._log_interaction(
-                user_input=user_input,
-                llm_response=response,
-                final_action=pending_action_info["pending_action"]
-            )
+        return response_data
 
-            return response
-
-        self._log_interaction(
-            user_input=user_input,
-            llm_response=nlp_result,
-            final_action=final_action_executed
-        )
-
-        return nlp_result

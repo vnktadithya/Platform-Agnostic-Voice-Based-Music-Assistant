@@ -1,7 +1,7 @@
 import json
 from backend.configurations.redis_client import redis_client
 
-SESSION_TTL_SECONDS = 300 # 5 minutes
+SESSION_TTL_SECONDS = 3600 # 1 hour
 MAX_HISTORY_MESSAGES = 10  # keep last 10 messages (≈ 5 user/bot turns)
 
 class SessionManager:
@@ -79,7 +79,6 @@ class SessionManager:
                 s = item.decode("utf-8") if isinstance(item, (bytes, bytearray)) else item
                 history.append(json.loads(s))
             except Exception:
-                # ignore malformed entries
                 pass
         return history
 

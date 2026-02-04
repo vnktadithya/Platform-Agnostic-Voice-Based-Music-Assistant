@@ -1,48 +1,50 @@
 import requests
 import os
 from dotenv import load_dotenv
-from uuid import uuid4
 import logging
-
 
 load_dotenv()
 logger = logging.getLogger(__name__)
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-VOICE_ID = "EXAVITQu4vr4xnSDxMaL"  # Default voice
-
-TEMP_AUDIO_DIR = "temp_audio"
-os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 class TextToSpeechService:
     @staticmethod
-    def synthesize_speech(text: str, output_path: str = None) -> str:
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
+    def synthesize_speech(text: str) -> bytes:
+        """
+        Synthesizes speech using Groq's high-speed TTS (OpenAI compatible API).
+        Returns raw audio bytes (MP3/WAV) without writing to disk.
+        """
+        if not GROQ_API_KEY:
+            raise ValueError("GROQ_API_KEY is missing. Please ensure it is set in your .env file.")
 
+        # Groq TTS Endpoint (OpenAI compatible)
+        url = "https://api.groq.com/openai/v1/audio/speech"
+        
         headers = {
-            "xi-api-key": ELEVENLABS_API_KEY,
+            "Authorization": f"Bearer {GROQ_API_KEY}",
             "Content-Type": "application/json"
         }
 
+        # Using 'canopylabs/orpheus-v1-english'
         body = {
-            "text": text,
-            "model_id": "eleven_multilingual_v2",
-            "voice_settings": {
-                "stability": 0.5,
-                "similarity_boost": 0.75
-            }
+            "model": "canopylabs/orpheus-v1-english",
+            "voice": "troy", 
+            "response_format": "wav",
+            "input": text
         }
 
-        response = requests.post(url, headers=headers, json=body)
+        try:
+            response = requests.post(url, headers=headers, json=body, timeout=60)
 
-        if response.status_code == 200:
-            filename = f"tts_{uuid4().hex}.mp3"
-            file_path = os.path.join(TEMP_AUDIO_DIR, filename)
-            audio_bytes = response.content
+            if response.status_code == 200:
+                # Return audio bytes directly
+                return response.content
+            else:
+                logger.error(f"Groq TTS failed: {response.text}")
+                raise Exception(f"Groq TTS API Failed: {response.status_code} - {response.text}")
 
-            with open(file_path, "wb") as f:
-                f.write(audio_bytes)
+        except Exception as e:
+            logger.error("Text-to-speech synthesis failed", exc_info=True)
+            # Re-raising is safer for the caller to handle.
+            raise e
 
-            return audio_bytes
-        else:
-            logger.error("Text-to-speech failed | status=%s", response.status_code)
-            raise Exception("TTS failed")
