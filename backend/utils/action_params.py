@@ -1,5 +1,3 @@
-# This maps each executable action to a list of parameters the LLM MUST extract.
-# We will use this to validate the LLM's output.
 ACTION_REQUIRED_PARAMS = {
     "play_song": ["song_name"],
     "add_to_playlist": ["song_name", "playlist_name"],
@@ -8,6 +6,9 @@ ACTION_REQUIRED_PARAMS = {
     "delete_playlist": ["playlist_name"],
     "play_song_by_artist": ["artist"],
     "play_song_by_movie": ["movie_name"],
-    "seek_time": ["seconds"],
-    "recommend_by_mood": ["mood"]
+    "skip_time": ["seconds"],
+    "change_volume": ["volume?", "mode?"],
+    "get_volume": [],
+
+    "reorder_playlist": ["playlist_name", "range_start", "insert_before"]
 }

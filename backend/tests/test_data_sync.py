@@ -1,7 +1,6 @@
-import datetime
 import pytest
 from unittest.mock import MagicMock
-from backend.services.sync_service import sync_user_library
+from backend.services.library_sync_service import sync_user_library
 from backend.models.database_models import PlatformAccount, UserLikedSong, UserPlaylist
 
 @pytest.fixture
@@ -23,7 +22,7 @@ def mock_spotify_adapter(monkeypatch):
         {"id": "playlist_1", "name": "My Playlist", "description": "Test Desc", "owner": {"display_name": "User1"}, "tracks": {"total": 5}},
         {"id": "playlist_2", "name": "Road Trip", "description": "Another Desc", "owner": {"display_name": "User2"}, "tracks": {"total": 10}},
     ]
-    monkeypatch.setattr("backend.services.sync_service.SpotifyAdapter", lambda access_token: mock_instance)
+
     return mock_instance
 
 def test_sync_user_library_inserts_only_new_data(test_db, mock_platform_account, mock_spotify_adapter):
@@ -42,7 +41,7 @@ def test_sync_user_library_inserts_only_new_data(test_db, mock_platform_account,
     test_db.add_all([existing_song, existing_playlist])
     test_db.commit()
 
-    sync_user_library(test_db, mock_platform_account, access_token="dummy")
+    sync_user_library(test_db, mock_platform_account, mock_spotify_adapter)
 
     new_liked_songs = test_db.query(UserLikedSong).filter(UserLikedSong.track_uri == "spotify:track:456").all()
     new_playlists = test_db.query(UserPlaylist).filter(UserPlaylist.playlist_id == "playlist_2").all()

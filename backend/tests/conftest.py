@@ -2,24 +2,40 @@ import fakeredis
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from backend.models.database_models import Base
+from backend.models.database_models import Base, PlatformAccount
 from backend.main import app
 from backend.configurations.database import get_db
 import backend.configurations.database as db_module
 from fastapi.testclient import TestClient
 
-# -----------------
 # Fake Redis fixture
-# -----------------
 @pytest.fixture(autouse=True)
 def fakeredis_patch(monkeypatch):
     fake_client = fakeredis.FakeStrictRedis()
     monkeypatch.setattr('backend.services.session_manager.redis_client', fake_client)
     yield
 
-# -----------------
+@pytest.fixture
+def platform_account_fixture(test_db):
+    """
+    Ensure a PlatformAccount exists in the test DB for search endpoint tests.
+    Avoids duplicate ID issues by letting DB auto-assign ID.
+    """
+    # Clean up any existing test account for consistency
+    test_db.query(PlatformAccount).filter_by(platform_name="spotify").delete()
+
+    account = PlatformAccount(
+        system_user_id=1,
+        platform_name="spotify",
+        platform_user_id="test_user",
+        refresh_token="dummy_refresh"
+    )
+    test_db.add(account)
+    test_db.commit()
+    test_db.refresh(account)  # Get auto-generated ID
+    return account
+
 # Test DB setup
-# -----------------
 TEST_DATABASE_URL = "sqlite:///./test.db"
 
 # Allow cross-thread access
