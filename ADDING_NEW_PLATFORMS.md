@@ -1,56 +1,57 @@
-# Extending SAM: How to Add a New Platform
+# Extending SAM: How to Add a New Music Platform
 
-One of SAM's core philosophies is being **Platform Agnostic**. We designed the architecture so that adding support for **Apple Music**, **YouTube Music**, or **Tidal** is a structured, predictable process.
-
-Follow this guide to integrate a new platform.
+SAM is designed to be **Platform Agnostic**. Adding support for a new service (e.g., Apple Music, YouTube Music, Tidal) is a structured process involving both Backend logic and Frontend visuals.
 
 ---
 
 ## 🖥️ Backend Implementation
 
 ### 1. Create the Adapter
-Go to `backend/adapters/` and create `new_platform_adapter.py`.
-It must inherit from `AdapterBase` and implement the abstract methods.
+Create `backend/adapters/new_platform_adapter.py`. It MUST inherit from `AdapterBase` and implement core methods.
 
 ```python
 from backend.adapters.adapter_base import AdapterBase
 
 class NewPlatformAdapter(AdapterBase):
-    def play(self, ...):
-        # Implementation using platform's API
+    def play(self, uris):
+        # Call platform API to play
         pass
         
-    def search(self, query, ...):
-        # Implementation
-        pass
+    def search_track_uris(self, query, limit=1):
+        # Return list of URIs
+        return ["newplatform:track:123"]
     
     @staticmethod
     def get_capabilities():
         return {
             "playback_control": True,
-            "playlist_creation": False # If not supported
+            "search": True
         }
 ```
 
-### 2. Register the Service
-Open `backend/services/music_action_service.py`.
-1.  Add a Dispatcher method: `_newplatform_play_song`.
-2.  Update the `perform_music_action` logic to recognize the new platform string.
+### 2. Implement Data Synchronization
+Update `backend/services/data_sync_service.py` to handle token refreshes and library fetching.
 
-```python
-@staticmethod
-def _newplatform_play_song(parameters: Dict):
-    return MusicActionService._get_newplatform_adapter(parameters).play(...)
-```
+1.  **Token Management**: Implement `refresh_newplatform_access_token(refresh_token)`.
+2.  **Valid Token Retrieval**: Implement `get_valid_newplatform_access_token(db, account)`.
+    *   *Logic*: Check DB expiration -> Return if valid -> Else refresh -> Update DB -> Return.
+3.  **Library Sync**: Implement `sync_newplatform_library(platform_account_id)`.
+    *   Fetch playlists/liked songs and store them using `sync_user_library` (shared utility).
 
-### 3. Update Database Models (Optional)
-If the new platform requires specific metadata fields that don't fit into the generic `meta_data` JSON column in `PlatformAccount`, update `backend/models/database_models.py`.
+### 3. Register Routes & Auth
+Update `backend/api/v1/adapter_routes.py`:
+*   **GET** `/v1/adapter/newplatform/login`: Redirect user to the platform's OAuth page.
+*   **GET** `/v1/adapter/newplatform/callback`: Handle the redirect code, exchange for tokens, and create a `PlatformAccount` in the DB.
 
-### 4. Configuration
-Add the necessary credentials to `.env`:
+### 4. Service Registry
+1.  **Music Action Service**: Update `backend/services/music_action_service.py` to recognize the new platform string and initialize your adapter.
+2.  **Dialog Manager** (Optional): If the platform has unique actions (e.g., "Thumbs Up"), update `_handle_music_action` in `backend/services/dialog_manager.py`.
+
+### 5. Config
+Add credentials to `.env`:
 ```env
-NEWPLATFORM_CLIENT_ID="class"
-NEWPLATFORM_SECRET="secret"
+NEWPLATFORM_CLIENT_ID="..."
+NEWPLATFORM_CLIENT_SECRET="..."
 ```
 
 ---
@@ -58,30 +59,56 @@ NEWPLATFORM_SECRET="secret"
 ## 🎨 Frontend Implementation
 
 ### 1. Add Visual Assets
-1.  Add the high-quality 3D logo (`.glb` or `.gltf`) to `frontend/public/models/`.
-2.  Add a texture/image to `frontend/public/textures/` for UI icons.
+1.  **Logo**: Add a transparent PNG to `frontend/public/logos/newplatform.png`.
+2.  **3D Model**: Add a `.glb` model to `frontend/public/models/newplatform.glb`.
+    *   *Tip*: Use `gltf-pipeline` to optimize it.
 
-### 2. Register the Orbit
-Open `frontend/src/components/canvas/PlatformOrbit.tsx`.
-Add your new platform to the `PLATFORMS` array. This automatically generates the 3D orbit and interactable icon.
-
+### 2. Register Variable Constants
+Update `frontend/src/constants/theme.ts`:
 ```typescript
-const PLATFORMS = [
-  { name: 'spotify', ... },
-  { name: 'soundcloud', ... },
-  { name: 'newplatform', color: '#FF0000', icon: '...' } // Add this
-];
+export const PLATFORM_THEME = {
+    // ... existing
+    newplatform: { color: '#FF0000', label: 'NEW PLATFORM' }
+};
 ```
 
+### 3. Create the Orbit
+Update `frontend/src/components/canvas/PlatformOrbit.tsx`. Add to the `PLATFORMS` array:
+```typescript
+const PLATFORMS = [
+    // ...
+    { 
+        id: 'newplatform', 
+        name: 'New Platform', 
+        color: '#FF0000', 
+        position: [x, y, z], // Choose a unique spot in 3D space
+        logo: '/logos/newplatform.png' 
+    }
+];
+```
+*   **Logic**: Update the `handleSelect` function (line ~365) to allow connection logic for `newplatform`.
+
+### 4. Add Visuals
+Update `frontend/src/components/overlay/PlatformVisuals.tsx`.
+*   Import your new 3D model component.
+*   Add a conditional block:
+    ```tsx
+    {activePlatform === 'newplatform' && (
+        <Canvas> <NewPlatformModel /> </Canvas>
+    )}
+    ```
+
+### 5. Document Capabilities
+Update `frontend/src/components/Features.tsx`. Add a `CapabilityCard` to the list so users know what features are supported (e.g., "Library Sync", "Play by Voice").
+
 ---
 
-## ✅ Verification
+## ✅ Verification Checklist
 
-1.  Restart the Backend (to load new Env vars and code).
-2.  Restart the Frontend.
-3.  Say: *"Play [Song] on NewPlatform"*.
-4.  **Success**: SAM understands the intent, routes it to your new adapter, and music plays.
-
----
-
-**You're done!** You've just expanded SAM's universe. 🚀
+1.  **Env**: Credentials added to `.env`.
+2.  **Backend**: Restart `uvicorn` and `celery`.
+3.  **Frontend**: Restart `npm run dev`.
+4.  **Test**:
+    *   Say *"Play [Song] on New Platform"*.
+    *   Verify the Orbit beam connects.
+    *   Verify the music plays on the device.

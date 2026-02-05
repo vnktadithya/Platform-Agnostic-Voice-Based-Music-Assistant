@@ -1,145 +1,126 @@
 # Backend Documentation
 
-The brain of **SAM (Self Adaptive Music Intelligence)**. This backend is a high-performance, asynchronous system built with **FastAPI**, designed to handle real-time voice processing, complex natural language understanding, and seamless music platform integration.
-
-## 🏗️ Architecture Deep Dive
-
-The backend follows a **Clean Architecture** principle, separating concerns into distinct layers:
-
-### 1. The Core Loop
-1.  **Input**: Audio is received via `multipart/form-data` at `/v1/voice/process`.
-2.  **Transliteration (STT)**: audio is sent to **Groq (Whisper v3)**. We use a specialized system prompt to force **transliteration** (e.g., Telugu words written in English script). This ensures compatibility with music search APIs that primarily index in Latin characters.
-3.  **Understanding (LLM)**: The text is processed by **Groq (Llama 3)**. The `DialogManager` maintains conversation context in a sliding window to support multi-turn interactions.
-4.  **Action Dispatch**: If a music command is detected, `MusicActionService` dynamically routes the request to the active platform (Spotify or SoundCloud).
-5.  **Feedback**: A response is generated, synthesized to speech (if enabled), and sent back to the frontend alongside the action payload.
-
-### 2. Intelligent Search Layer
-To optimize latency and reduce API rate limits, we implement a multi-tiered search strategy:
-*   **Tier 1: Redis Cache**: Checks if this specific query has been resolved recently. (Fastest)
-*   **Tier 2: Local Database**: Checks `SearchCache` table for historical matches.
-    *   **Normalization**: Queries are stripped of special characters and lowercased (e.g., "PlaY... Nuvvu-Nenantu!" -> "play nuvvu nenantu") before caching. This increases cache hit rates by resolving minor speech variations to the same entry.
-*   **Tier 3: Platform API**: Falls back to the external API (Spotify/SoundCloud).
-    *   *Result*, *Action*, and *Metadata* are then cached back to Tier 1 & 2 for future speed.
-
-### 3. Background Synchronization (Celery)
-SAM doesn't just react; it proactively manages your library.
-*   **Worker Pool**: Running on `gevent` for extensive I/O concurrency.
-*   **Periodic Tasks**:
-    *   `refresh_all_spotify_libraries`: Every **6 hours**, keeps user playlists and liked songs in sync.
-    *   `purge_expired_search_cache`: Every **24 hours**, cleans up old cache entries to save DB space.
+The **SAM Backend** is a high-performance, asynchronous FastAPI application that serves as the brain of the voice assistant. It orchestrates the complex interplay between Speech-to-Text (STT), Large Language Models (LLM), and third-party music APIs.
 
 ---
 
-## 🔧 Setup & Installation
+## 🏗️ Architecture & Core Loop
 
-### Prerequisites
-*   Python 3.10+
-*   Redis Server (Must be running)
-*   PostgreSQL Database
+The backend prioritizes **latency** and **accuracy**. The core processing loop (`voice_routes.py`) follows a strict pipeline:
 
-### 1. Virtual Environment
-```bash
-python -m venv venv
-# Windows
-.\venv\Scripts\activate
-# Linux/Mac
-source venv/bin/activate
-```
+### 1. The Voice Pipeline
+1.  **Ingestion**: Audio blobs (WebM/WAV) are received via `multipart/form-data` at `/v1/voice/process`.
+2.  **Transliteration (STT)**:
+    *   **Engine**: Groq (Whisper-large-v3).
+    *   **Innovation**: We use a custom system prompt to force *transliteration* of non-English terms (e.g., Telugu song titles) into Latin script. This is critical for compatibility with music search APIs that do not support native scripts well.
+3.  **Intent Understanding (LLM)**:
+    *   **Engine**: Groq (Llama 3-8b-8192).
+    *   **Context**: Controlled by `DialogManager`, which maintains a sliding window of the last ~5 turns to support follow-up queries (e.g., "Play it" implies the song mentioned previously).
+    *   **Output**: Structured JSON containing the `action` (PLAY, PAUSE, ETC), `parameters` (song name), and `response_text`.
+4.  **Action Execution**:
+    *   `MusicActionService` is the central dispatcher.
+    *   It determines the **Active Platform** (Spotify vs. SoundCloud) based on user preference or explicit command.
+    *   It calls the appropriate **Adapter** (`SpotifyAdapter` or `SoundCloudAdapter`).
+5.  **Feedback Loop**:
+    *   The system returns the text response (for TTS) and the execution status immediately.
 
-### 2. Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Database Migration
-The application uses SQLAlchemy. Tables are automatically created on startup in `main.py`, but ensure your database exists.
+### 2. Intelligent Caching Layer
+To bypass the latency of external Music APIs, we use a 3-tier search strategy:
+*   **Tier 1 (Redis)**: Hot cache for identical queries made recently.
+*   **Tier 2 (PostgreSQL `search_cache`)**: Persistent cache of "normalized" queries.
+    *   *Example*: "Play Nuvvu-Nenantu" and "play nuvvu nenantu song" both resolve to the same cached track URI.
+*   **Tier 3 (Platform API)**: The fallback. Results are immediately cached to Tier 1 & 2.
 
 ---
 
-## 🔑 Environment Variables
+## 🧩 Key Services
 
-Create a `.env` file in the root. **All credentials are required for full functionality.**
+The logic is modularized into `backend/services/`:
 
-### Core Infrastructure
-| Variable | Description |
+| Service | Responsibility |
 | :--- | :--- |
-| `DATABASE_URL` | PostgreSQL connection string. <br>`postgresql://user:pass@localhost:5432/dbname` |
-| `REDIS_HOST` | Host for Redis (Cache & Celery). Default: `localhost` |
-| `REDIS_PORT` | Port for Redis. Default: `6379` |
-| `SESSION_SECRET_KEY`| Random string for encrypting session cookies. |
-
-### AI Services
-| Variable | Description | Get It Here |
-| :--- | :--- | :--- |
-| `GROQ_API_KEY` | Powers both STT and LLM. We chose Groq for its **unmatched inference speed**. | [Groq Console](https://console.groq.com/keys) |
-| `ELEVENLABS_API_KEY`| (Optional) For high-quality TTS voices. | [ElevenLabs](https://elevenlabs.io/) |
-
-### Music Platforms
-**Spotify Configuration**
-*   **Why**: Required for remote control and library sync.
-*   **Redirect URI**: Must match `http://localhost:8000/adpter/spotify/callback`.
-*   [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
-    *   `SPOTIFY_CLIENT_ID`
-    *   `SPOTIFY_CLIENT_SECRET`
-    *   `SPOTIFY_REDIRECT_URI`
-
-**SoundCloud Configuration**
-*   **Why**: Enables access to SoundCloud's unique library.
-*   **Note**: SoundCloud requires a manually registered app.
-    *   `ENABLE_SOUNDCLOUD=true`
-    *   `SOUNDCLOUD_CLIENT_ID`
-    *   `SOUNDCLOUD_CLIENT_SECRET`
-    *   `SOUNDCLOUD_REDIRECT_URI`
+| **`dialog_manager.py`** | Manages conversation history and prompt engineering. Decides if a query is a *music command* or just *chat*. |
+| **`music_action_service.py`** | The "Router". It receives high-level intents (PLAY, SKIP) and delegates them to the correct platform adapter. |
+| **`library_sync_service.py`** | Handles the massive job of fetching, parsing, and storing thousands of songs/playlists from Spotify/SoundCloud into our local DB. |
+| **`data_sync_service.py`** | The "Glue" connecting Celery workers to the sync logic. Handles token refreshing and task distribution. |
+| **`speech_to_text.py`** | Wrapper for Groq's transcription API. |
+| **`text_to_speech.py`** | Wrapper for ElevenLabs (or fallback TTS systems). |
 
 ---
 
-## 📡 API Reference
+## 💾 Database Schema (PostgreSQL)
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/v1/voice/process` | Main entry point. Handles audio blob, returns text + audio + action. |
-| `POST` | `/v1/chat/message` | Text-only interface. Uses the same logic pipeline as voice. |
-| `GET` | `/v1/adapter/spotify/login` | Initiates OAuth flow for Spotify. |
-| `GET` | `/v1/adapter/spotify/callback` | Handles OAuth code exchange and token storage. |
-| `GET` | `/v1/user/status` | Returns current user sync status and connected platforms. |
+We use **SQLAlchemy** ORM. Key tables in `backend/models/database_models.py`:
+
+### `users`
+The root entity.
+*   `id`: UUID
+*   `email`: User's identifier.
+
+### `platform_accounts`
+Stores the credentials for connected services.
+*   `user_id`: FK to User.
+*   `platform_name`: "spotify" | "soundcloud".
+*   `access_token`, `refresh_token`: Encrypted storage.
+*   `meta_data`: JSON column for platform-specific extras (profile pic, user URI).
+
+### `search_cache`
+The secret sauce for speed.
+*   `query_hash`: SHA256 hash of the normalized query.
+*   `platform`: The service the result is for.
+*   `result_uri`: The actionable URI (e.g., `spotify:track:123`).
+*   `expires_at`: TTL for the cache entry.
+
+---
+
+## 🔌 API Reference
+
+### Core Endpoints (`api/v1/`)
+
+#### Voice & Chat
+*   **POST** `/v1/voice/process`: Upload audio file -> Get Action + Audio Response.
+*   **POST** `/v1/chat/message`: Send text -> Get Action + Text Response.
+
+#### Platforms (`adapter_routes.py`)
+*   **GET** `/v1/adapter/{platform}/login`: Start OAuth flow.
+*   **GET** `/v1/adapter/{platform}/callback`: OAuth callback handler.
+*   **GET** `/v1/adapter/{platform}/status`: Check connection status.
 
 ---
 
 ## 🧪 Testing
 
-We adhere to **industry-standard testing practices** using `pytest`. Our test suite covers:
+We use `pytest` for robust testing.
 
-*   **Integration Tests** (`test_integration.py`): Verifies the full chain from API -> Service -> DB.
-*   **Unit Tests**:
-    *   `test_dialog_manager.py`: Ensures conversation context is maintained.
-    *   `test_sequencing.py`: Validates that music commands (Immediate vs Deferred) are sequenced correctly.
-    *   `test_data_sync.py`: Checks if playlists are correctly parsed and stored.
-
-**Run Tests:**
+### Running Tests
 ```bash
+# Run all tests
 pytest backend/tests
+
+# Run specific integration tests
+pytest backend/tests/test_integration.py
 ```
+
+### Test Scope
+*   **Unit Tests**: Validate `DialogManager` state changes and `MusicActionService` routing.
+*   **Integration Tests**: Spin up a test DB and verify that API endpoints correctly create/read records.
+*   **Mocking**: We use `unittest.mock` to simulate calls to Groq and Spotify APIs, ensuring tests are fast and free.
 
 ---
 
-## 🚀 Running the Services
+## ⚙️ Background Tasks (Celery)
 
-The backend consists of three distinct processes that must run simultaneously.
+SAM relies on Celery for tasks that take >200ms.
 
-**1. API Server (Uvicorn)**
-Serves the HTTP endpoints and WebSockets.
+*   **Metric**: We purposely offload library synchronization to Celery to keep the Voice API response time under strict limits.
+*   **Worker**: Runs on `gevent` pool to handle I/O bound tasks (network requests to Spotify).
+*   **Beat**: Schedules the `refresh_all_spotify_libraries` task every 6 hours.
+
+**Commands:**
 ```bash
-uvicorn backend.main:app --reload
-```
-
-**2. Task Worker (Celery)**
-Executes heavy background tasks (syncing libraries) without blocking the API.
-```bash
+# Start Worker
 celery -A backend.celery_worker worker --loglevel=info --pool=gevent
-```
 
-**3. Scheduler (Celery Beat)**
-Triggers periodic maintenance tasks (cache purge, sync).
-```bash
+# Start Scheduler
 celery -A backend.celery_worker beat --loglevel=info
 ```

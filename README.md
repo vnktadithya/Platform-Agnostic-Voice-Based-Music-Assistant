@@ -20,11 +20,9 @@
 
 ## 🚀 Overview
 
-SAM is a voice assistant designed as a dynamic interface for music control. It bridges the gap between static playlists and conversational interaction using advanced LLM integration and real-time 3D visualization.
+**SAM** (Self Adaptive Music) is a next-generation voice assistant designed to revolutionize how you interact with music. Breaking away from static playlists, SAM uses advanced **LLMs (Groq Llama 3)** to understand natural language and intent, executing complex commands across multiple platforms like **Spotify** and **SoundCloud**.
 
-- **True Intelligence**: Powered by **Groq**, SAM understands context, manages conversations, and executes commands instantly.
-- **Visual Feedback**: Voice inputs trigger real-time reactions in a 3D particle system, creating a tangible feedback loop.
-- **Extensible Architecture**: Built to control multiple platforms (Spotify, SoundCloud) with a modular adapter pattern which can be easily extended to other platforms(Apple Music, Youtube Music).
+All of this happens within a stunning **3D immersive interface** built with React Three Fiber, where the environment reacts to the music and your voice in real-time.
 
 ---
 
@@ -32,74 +30,68 @@ SAM is a voice assistant designed as a dynamic interface for music control. It b
 
 | Feature | Description |
 | :--- | :--- |
-| **🗣️ Conversational AI** | Natural language understanding via **Groq (Llama 3)**. Handles context-aware queries and music commands. |
-| **🎵 Platform Agnostic** | Seamlessly controls **Spotify** and **SoundCloud**. Modular design allows easy integration of new providers. |
-| **🌌 Immersive 3D UI** | Built with **React Three Fiber**. A digital orb and particle system that reacts to voice activity and music energy. |
-| **⚡ Low Latency** | Optimized architecture using **Redis** and **WebSockets** for instant playback control. |
-| **🔄 Smart Sync** | Background **Celery workers** keep libraries, playlists, and liked songs in sync across platforms. |
+| **🗣️ Conversational AI** | Powered by **Groq (Llama 3)** for near-instant natural language understanding. Context-aware interactions allow for follow-up requests. |
+| **🎵 Platform Agnostic** | Seamlessly controls **Spotify** and **SoundCloud** from a single interface. extensible design allows easy addition of new providers. |
+| **🌌 Immersive 3D UI** | A cinematic experience built with **Three.js**. The "Living Tether" connecting SAM to platforms physically reacts to data flow and music energy. |
+| **⚡ Low Latency** | Optimized architecture using **Redis** for caching and **WebSockets** for real-time state synchronization (< 500ms response time). |
+| **🔄 Smart Sync** | Background **Celery workers** keep your playlists, liked songs, and libraries in sync across all connected platforms. |
 
 ---
 
 ## 🏗️ Architecture
 
-SAM follows a clean architecture designed for scalability and performance.
+SAM follows a clean, modular architecture designed for performance and scalability.
 
 <div align="center">
   <img src="docs/assets/architecture.png" alt="SAM Architecture Diagram" width="800" />
 </div>
 
-**The Flow:**
-1.  **User** speaks to the **Frontend (React)**.
-2.  **Voice Service** (Groq) transcribes and interprets the intent.
-3.  **Backend (FastAPI)** orchestrates the action via **Music Adapters**.
-4.  **Celery Workers** handle heavy lifting (syncing libraries) in the background.
-5.  **Redis** ensures state is shared instantly across the system.
+### Project Structure
+
+```bash
+personal-voice-assistant/
+├── backend/                 # FastAPI Application
+│   ├── adapters/            # Platform-specific logic (Spotify, SoundCloud)
+│   ├── api/                 # REST endpoints and WebSockets
+│   ├── services/            # Core business logic (LLM, Sync, Search)
+│   └── models/              # Database schemas (SQLAlchemy)
+├── frontend/                # React + Vite Application
+│   ├── src/
+│   │   ├── components/      # React components
+│   │   │   ├── canvas/      # 3D R3F scenes (Orbits, Particles)
+│   │   │   └── overlay/     # HTML UI layers (Chat, HUD)
+│   │   └── store/           # Zustand state management
+├── docs/                    # Documentation assets
+└── README.md                # You are here
+```
 
 ---
 
-## 🛠️ Technology Stack
+## ⚠️ Service Requirements
 
-### Backend
-*   **Framework**: FastAPI (Python)
-*   **Database**: PostgreSQL & SQLAlchemy (ORM)
-*   **Async Tasks**: Celery with Redis Broker
-*   **Real-time**: Socket.IO
-*   **AI Engine**: Groq API (Llama 3-8b-8192)
-*   **Environment**: Gevent (Windows compatibility for Celery)
+Before setting up SAM, ensure you meet the requirements for the music platforms you intend to use.
 
-### Frontend
-*   **Core**: React (Vite) + TypeScript
-*   **3D Engine**: Three.js / @react-three/fiber / Drei
-*   **State Management**: Zustand
-*   **Styling**: Tailwind CSS + Framer Motion
+> [!IMPORTANT]
+> **Spotify Integration Requirements:**
+> 1.  **Premium Subscription**: Spotify's API restricts playback control to Premium users only.
+> 2.  **Developer Dashboard**: Since this app is in "Development Mode", you **MUST** manually add your email address to the allowed users list in your [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
+
+> [!NOTE]
+> **SoundCloud Integration Requirements:**
+> *   **Active Account**: A free SoundCloud account is sufficient. No premium subscription is needed.
 
 ---
 
-## � How It Works
+## 🛠️ Getting Started
 
-A breakdown of the voice-to-action lifecycle:
-
-<div align="center">
-  <img src="docs/assets/process_workflow.png" alt="Process Workflow Diagram" width="600" />
-</div>
-
-1.  **User** initiates a command via voice.
-2.  **Interface** captures audio and streams it to the backend.
-3.  **Intelligence** (Groq) transcribes the audio and determines the intent (e.g., "Play soft jazz").
-4.  **Adapter Layer** selects the appropriate platform (Spotify, SoundCloud, etc.) to execute the request.
-5.  **Feedback** is provided visually via the 3D Orb and audibly via TTS.
-
----
-
-## �🚀 Getting Started
-
-Follow these steps to set up a local instance.
+Follow these steps to set up a local instance of SAM.
 
 ### Prerequisites
+
 *   **Python** 3.10+
 *   **Node.js** 18+
-*   **PostgreSQL** (Local or Cloud)
-*   **Redis** (Local or Cloud)
+*   **Redis** (Must be running locally or via Docker)
+*   **PostgreSQL** (Local or Cloud instance)
 
 ### 1. Installation
 
@@ -108,127 +100,112 @@ Follow these steps to set up a local instance.
 git clone https://github.com/yourusername/personal-voice-assistant.git
 cd personal-voice-assistant
 
-# Backend Setup
+# Setup Backend Virtual Environment
+python -m venv venv
+# Windows:
+.\venv\Scripts\activate
+# Linux/Mac:
+source venv/bin/activate
+
+# Install Backend Dependencies
 pip install -r requirements.txt
 
-# Frontend Setup
+# Setup Frontend
 cd frontend
 npm install
 ```
 
-### 2. Configuration (.env)
+### 2. Configuration (`.env`)
 
-Create a `.env` file in the root directory.
+Create a `.env` file in the root directory. This is critical for the application to function.
 
-> [!IMPORTANT]
-> The project relies on these keys for functionality.
-
-**Data & Security**
 ```env
+# --- Data & Security ---
 DATABASE_URL="postgresql://postgres:password@localhost:5432/sam_db"
 REDIS_HOST="localhost"
 REDIS_PORT=6379
-SESSION_SECRET_KEY="your-session-secret-key"
-```
+SESSION_SECRET_KEY="change-this-secret-key"
 
-**AI & Voice**
-```env
-# Get from https://console.groq.com/keys
+# --- AI & Voice ---
+# Logic & STT: https://console.groq.com/keys
 GROQ_API_KEY="gsk_..."
-```
+# TTS (Optional): https://elevenlabs.io/
+ELEVENLABS_API_KEY="..." 
 
-**Music Platforms**
-```env
-# Spotify (https://developer.spotify.com/dashboard)
-SPOTIFY_CLIENT_ID="your_spotify_client_id"
-SPOTIFY_CLIENT_SECRET="your_spotify_client_secret"
+# --- Spotify (Required for Spotify) ---
+# https://developer.spotify.com/dashboard
+SPOTIFY_CLIENT_ID="your_client_id"
+SPOTIFY_CLIENT_SECRET="your_client_secret"
 SPOTIFY_REDIRECT_URI="http://localhost:8000/adpter/spotify/callback"
 
-# SoundCloud
+# --- SoundCloud (Required for SoundCloud) ---
 ENABLE_SOUNDCLOUD=true
-SOUNDCLOUD_CLIENT_ID="your_soundcloud_client_id"
-SOUNDCLOUD_CLIENT_SECRET="your_soundcloud_client_secret"
+SOUNDCLOUD_CLIENT_ID="your_sc_client_id"
+SOUNDCLOUD_CLIENT_SECRET="your_sc_client_secret"
 SOUNDCLOUD_REDIRECT_URI="http://localhost:8000/v1/adapter/soundcloud/callback"
 ```
 
-### 3. Running the Project
+### 3. Running the Application
 
-**1. Start Redis Server**
+You will need **4 separate terminal instances** to run the full stack.
 
-*   **1.1 Windows (WSL)**: 
-    ```bash
-    sudo service redis-server start
-    ```
-    *Note: Redis must run inside WSL(Windows Sub-System for Linux).*
-
-*   **1.2 macOS**:
-    ```bash
-    brew services start redis
-    ```
-
-*   **1.3 Linux**:
-    ```bash
-    sudo systemctl start redis
-    ```
-
-**2. Start Backend (API)**
+#### Terminal 1: Backend API
+Starts the FastAPI server and WebSocket manager.
 ```bash
-# From root directory
+# Make sure venv is active
 uvicorn backend.main:app --reload
 ```
 
-**3. Start Celery Worker (Background Tasks)**
+#### Terminal 2: Celery Worker
+Handles heavy background tasks like library synchronization.
 ```bash
-# From root directory (Windows)
+# Windows (requires gevent)
 celery -A backend.celery_worker worker --loglevel=info --pool=gevent
 
-# ignore --pool=gevent in Linux and macOS
+# Linux / Mac
+celery -A backend.celery_worker worker --loglevel=info
 ```
 
-**4. Start Celery Beat (Periodic Scheduler)**
+#### Terminal 3: Celery Beat
+Scheduler for periodic tasks (e.g., refreshing tokens every hour).
 ```bash
-# From root directory
 celery -A backend.celery_worker beat --loglevel=info
 ```
 
-**5. Start Frontend**
+#### Terminal 4: Frontend
+Launches the 3D interface.
 ```bash
 cd frontend
 npm run dev
 ```
 
-Visit `http://localhost:5173`.
+Visit **`http://localhost:5173`** to enter SAM.
 
 ---
 
-## � Troubleshooting
+## 🗣️ Usage
 
-Common issues related to environment and connectivity.
+Once inside the application, click anywhere to activate the "Listening" state (or ensure your mic is authorized).
 
-| Issue | Possible Cause | Solution |
-| :--- | :--- | :--- |
-| **Redis Connection Error** | Redis server not running. | Windows: `sudo service redis-server start` (WSL). Mac/Linux: Ensure service is active. |
-| **Microphone Not Detected** | Browser permissions. | Allow microphone access for `localhost:5173` in browser settings. |
-| **Environment Errors** | Missing `.env` variables. | Ensure all keys (Groq, Spotify, Database) are set in `.env`. |
+**Try these commands:**
+*   *"Play Blinding Lights by The Weeknd"* (Defaults to your preferred platform)
+*   *"Play some lo-fi beats on SoundCloud"*
+*   *"Increase volume"*
+*   *"Pause"*
+*   *"Add this song to my Gym playlist"*
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome!
+We welcome contributions! Please check the specific documentation for the component you want to modify:
 
-1.  **Fork** the repository.
-2.  Create a **Feature Branch** (`git checkout -b feature/AmazingFeature`).
-3.  **Commit** your changes (`git commit -m 'Add some AmazingFeature'`).
-4.  **Push** to the branch (`git push origin feature/AmazingFeature`).
-5.  Open a **Pull Request**.
+*   **[Backend Documentation](backend/README.md)**: API reference, Services, and Architecture deep dive.
+*   **[Frontend Documentation](frontend/README.md)**: Component structure, 3D Engine, and State Management.
+*   **[Adding New Platforms](ADDING_NEW_PLATFORMS.md)**: Step-by-step guide to integrating Apple Music, YouTube, etc.
 
 ---
 
-## �📚 Documentation Links
+## 📄 License
 
-*   **[Backend Documentation](backend/README.md)**: Deep dive into API endpoints, database schema, and services.
-*   **[Frontend Documentation](frontend/README.md)**: Explore the 3D component structure and visual effects.
-*   **[Adding New Platforms](ADDING_NEW_PLATFORMS.md)**: Integrating Apple Music, YouTube, and more.
-
----
+This project is licensed under the **MIT License**.
