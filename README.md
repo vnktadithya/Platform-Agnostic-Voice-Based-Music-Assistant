@@ -31,7 +31,7 @@ All of this happens within a stunning **3D immersive interface** built with Reac
 | Feature | Description |
 | :--- | :--- |
 | **🗣️ Conversational AI** | Powered by **Groq (Llama 3)** for near-instant natural language understanding. Context-aware interactions allow for follow-up requests. |
-| **🎵 Platform Agnostic** | Seamlessly controls **Spotify** and **SoundCloud** from a single interface. extensible design allows easy addition of new providers. |
+| **🎵 Platform Agnostic** | Seamlessly controls **Spotify** and **SoundCloud** from a single interface. Extensible design allows easy addition of new music providers. |
 | **🌌 Immersive 3D UI** | A cinematic experience built with **Three.js**. The "Living Tether" connecting SAM to platforms physically reacts to data flow and music energy. |
 | **⚡ Low Latency** | Optimized architecture using **Redis** for caching and **WebSockets** for real-time state synchronization (< 500ms response time). |
 | **🔄 Smart Sync** | Background **Celery workers** keep your playlists, liked songs, and libraries in sync across all connected platforms. |
@@ -52,15 +52,34 @@ SAM follows a clean, modular architecture designed for performance and scalabili
 personal-voice-assistant/
 ├── backend/                 # FastAPI Application
 │   ├── adapters/            # Platform-specific logic (Spotify, SoundCloud)
-│   ├── api/                 # REST endpoints and WebSockets
+│   ├── api/                 
+│   │   ├── v1/              # REST endpoints
+│   ├── configurations/      # Postgres and Redis Configuration
 │   ├── services/            # Core business logic (LLM, Sync, Search)
-│   └── models/              # Database schemas (SQLAlchemy)
+│   ├── models/              # Database schemas (SQLAlchemy)
+│   ├── tests/               # Unit and Integration tests
+│   ├── utils/               # Helper functions
+│   ├── celery_worker.py     # Background Tasks scheduler
+│   ├── main.py              # Entry point to fastAPI application
+│   ├── socket_manager.py    # Web Secket
+│   ├── README.md            # Backend Architecture
+│
 ├── frontend/                # React + Vite Application
+│   ├── public/              # Platform Logos and 3d models
 │   ├── src/
 │   │   ├── components/      # React components
 │   │   │   ├── canvas/      # 3D R3F scenes (Orbits, Particles)
 │   │   │   └── overlay/     # HTML UI layers (Chat, HUD)
+│   │   ├── pages/           # Web Pages
+│   │   ├── services/        # API and Voice clients
+│   │   ├── hooks/           # Custom React hooks (Audio, Chat, Platform logic)
+│   │   ├── constants/       # paltform themes
 │   │   └── store/           # Zustand state management
+│   │   ├── types/           # Shared TypeScript interfaces and type definitions
+│   │   ├── utils/           # helper functions
+│   │   ├── App.tsx          # root component
+│   │   ├── main.tsx         # Entry point of the application
+│   │   ├── index.css        # global styles
 ├── docs/                    # Documentation assets
 └── README.md                # You are here
 ```
@@ -124,39 +143,47 @@ Create a `.env` file in the root directory. This is critical for the application
 DATABASE_URL="postgresql://postgres:password@localhost:5432/sam_db"
 REDIS_HOST="localhost"
 REDIS_PORT=6379
-SESSION_SECRET_KEY="change-this-secret-key"
+SESSION_SECRET_KEY="your-session-secret-key"
 
 # --- AI & Voice ---
-# Logic & STT: https://console.groq.com/keys
-GROQ_API_KEY="gsk_..."
-# TTS (Optional): https://elevenlabs.io/
-ELEVENLABS_API_KEY="..." 
+# Logic, TTS & STT: https://console.groq.com/keys
+GROQ_API_KEY="gsk_..." 
 
-# --- Spotify (Required for Spotify) ---
+# --- Spotify ---
 # https://developer.spotify.com/dashboard
-SPOTIFY_CLIENT_ID="your_client_id"
-SPOTIFY_CLIENT_SECRET="your_client_secret"
+SPOTIFY_CLIENT_ID="your_spotify_client_id"
+SPOTIFY_CLIENT_SECRET="your_spotify_client_secret"
 SPOTIFY_REDIRECT_URI="http://localhost:8000/adpter/spotify/callback"
 
-# --- SoundCloud (Required for SoundCloud) ---
+# --- SoundCloud ---
 ENABLE_SOUNDCLOUD=true
-SOUNDCLOUD_CLIENT_ID="your_sc_client_id"
-SOUNDCLOUD_CLIENT_SECRET="your_sc_client_secret"
+SOUNDCLOUD_CLIENT_ID="your_soundcloud_client_id"
+SOUNDCLOUD_CLIENT_SECRET="your_soundcloudc_client_secret"
 SOUNDCLOUD_REDIRECT_URI="http://localhost:8000/v1/adapter/soundcloud/callback"
 ```
 
 ### 3. Running the Application
 
-You will need **4 separate terminal instances** to run the full stack.
+You will need **5 separate terminal instances** to run the full stack.
 
-#### Terminal 1: Backend API
+### Terminal 1: Redis (Message Broker)
+Required for Celery task queue and background job coordination.
+```bash
+# Windows (run Redis inside WSL) / Linux
+sudo service redis-server start
+
+# macOS (using Homebrew)
+brew services start redis
+```
+
+#### Terminal 2: Backend API
 Starts the FastAPI server and WebSocket manager.
 ```bash
 # Make sure venv is active
 uvicorn backend.main:app --reload
 ```
 
-#### Terminal 2: Celery Worker
+#### Terminal 3: Celery Worker
 Handles heavy background tasks like library synchronization.
 ```bash
 # Windows (requires gevent)
@@ -166,13 +193,13 @@ celery -A backend.celery_worker worker --loglevel=info --pool=gevent
 celery -A backend.celery_worker worker --loglevel=info
 ```
 
-#### Terminal 3: Celery Beat
+#### Terminal 4: Celery Beat
 Scheduler for periodic tasks (e.g., refreshing tokens every hour).
 ```bash
 celery -A backend.celery_worker beat --loglevel=info
 ```
 
-#### Terminal 4: Frontend
+#### Terminal 5: Frontend
 Launches the 3D interface.
 ```bash
 cd frontend
@@ -185,11 +212,11 @@ Visit **`http://localhost:5173`** to enter SAM.
 
 ## 🗣️ Usage
 
-Once inside the application, click anywhere to activate the "Listening" state (or ensure your mic is authorized).
+Once inside the application, click on mic button to activate the "Listening" state (or ensure your mic is authorized). Additionally the platform supports text input as well. 
 
 **Try these commands:**
-*   *"Play Blinding Lights by The Weeknd"* (Defaults to your preferred platform)
-*   *"Play some lo-fi beats on SoundCloud"*
+*   *"Play Blinding Lights by The Weeknd"*
+*   *"Play some lo-fi beats"*
 *   *"Increase volume"*
 *   *"Pause"*
 *   *"Add this song to my Gym playlist"*
