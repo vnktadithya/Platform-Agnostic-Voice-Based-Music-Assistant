@@ -75,7 +75,23 @@ SAM follows a clean architecture designed for scalability and performance.
 
 ---
 
-## 🚀 Getting Started
+## � How It Works
+
+A breakdown of the voice-to-action lifecycle:
+
+<div align="center">
+  <img src="docs/assets/process_workflow.png" alt="Process Workflow Diagram" width="600" />
+</div>
+
+1.  **User** initiates a command via voice.
+2.  **Interface** captures audio and streams it to the backend.
+3.  **Intelligence** (Groq) transcribes the audio and determines the intent (e.g., "Play soft jazz").
+4.  **Adapter Layer** selects the appropriate platform (Spotify, SoundCloud, etc.) to execute the request.
+5.  **Feedback** is provided visually via the 3D Orb and audibly via TTS.
+
+---
+
+## �🚀 Getting Started
 
 Follow these steps to set up a local instance.
 
@@ -185,7 +201,31 @@ Visit `http://localhost:5173`.
 
 ---
 
-## 📚 Documentation Links
+## � Troubleshooting
+
+Common issues related to environment and connectivity.
+
+| Issue | Possible Cause | Solution |
+| :--- | :--- | :--- |
+| **Redis Connection Error** | Redis server not running. | Windows: `sudo service redis-server start` (WSL). Mac/Linux: Ensure service is active. |
+| **Microphone Not Detected** | Browser permissions. | Allow microphone access for `localhost:5173` in browser settings. |
+| **Environment Errors** | Missing `.env` variables. | Ensure all keys (Groq, Spotify, Database) are set in `.env`. |
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome!
+
+1.  **Fork** the repository.
+2.  Create a **Feature Branch** (`git checkout -b feature/AmazingFeature`).
+3.  **Commit** your changes (`git commit -m 'Add some AmazingFeature'`).
+4.  **Push** to the branch (`git push origin feature/AmazingFeature`).
+5.  Open a **Pull Request**.
+
+---
+
+## �📚 Documentation Links
 
 *   **[Backend Documentation](backend/README.md)**: Deep dive into API endpoints, database schema, and services.
 *   **[Frontend Documentation](frontend/README.md)**: Explore the 3D component structure and visual effects.
