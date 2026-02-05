@@ -28,10 +28,6 @@ export const LandingPage = () => {
                 <ImageSequence onCycleComplete={handleCycleComplete} instantStart={introSeen} />
                 <LandingOverlay showButton={showButton} />
             </section>
-
-
-
-
         </main>
     );
 };

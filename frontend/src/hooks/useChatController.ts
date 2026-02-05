@@ -147,6 +147,6 @@ export const useChatController = () => {
         setInputMode,
         onTextSubmit,
         handleInteractionStart,
-        analyzeAudioElement // Exported for usePlatformStatus if needed
+        analyzeAudioElement
     };
 };

@@ -1,15 +1,12 @@
 import { useEffect } from 'react';
-
 import { AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
-
 import { Canvas } from '@react-three/fiber';
 import { CosmicBackground } from '../components/canvas/CosmicBackground';
 import { SamCore } from '../components/canvas/SamCore';
 import { GhostMessage } from '../components/overlay/GhostMessage';
 import { DeviceWarning } from '../components/overlay/DeviceWarning';
 import { NowPlayingWidget } from '../components/overlay/NowPlayingWidget';
-
 import { PLATFORM_THEME } from '../constants/theme';
 import { InputArea } from '../components/overlay/InputArea';
 import { PlatformVisuals } from '../components/overlay/PlatformVisuals';
