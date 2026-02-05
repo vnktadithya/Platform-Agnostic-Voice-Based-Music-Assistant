@@ -78,8 +78,10 @@ personal-voice-assistant/
 │   │   ├── types/           # Shared TypeScript interfaces and type definitions
 │   │   ├── utils/           # helper functions
 │   │   ├── App.tsx          # root component
-│   │   ├── main.tsx         # Entry point of the application
+│   │   ├── main.tsx         # Entry point for application
 │   │   ├── index.css        # global styles
+│   ├── index.html           # Main entry point
+│   ├── README.md            # Frontend Architecture
 ├── docs/                    # Documentation assets
 └── README.md                # You are here
 ```
