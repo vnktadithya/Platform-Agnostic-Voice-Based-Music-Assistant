@@ -24,7 +24,7 @@ SAM is a voice assistant designed as a dynamic interface for music control. It b
 
 - **True Intelligence**: Powered by **Groq**, SAM understands context, manages conversations, and executes commands instantly.
 - **Visual Feedback**: Voice inputs trigger real-time reactions in a 3D particle system, creating a tangible feedback loop.
-- **Extensible Architecture**: Built to control multiple platforms (Spotify, SoundCloud) with a modular adapter pattern.
+- **Extensible Architecture**: Built to control multiple platforms (Spotify, SoundCloud) with a modular adapter pattern which can be easily extended to other platforms(Apple Music, Youtube Music).
 
 ---
 
@@ -33,7 +33,7 @@ SAM is a voice assistant designed as a dynamic interface for music control. It b
 | Feature | Description |
 | :--- | :--- |
 | **🗣️ Conversational AI** | Natural language understanding via **Groq (Llama 3)**. Handles context-aware queries and music commands. |
-| **🎵 Platform Agnostic** | Seamlessly controls **Spotify** and **SoundCloud**. modular design allows easy integration of new providers. |
+| **🎵 Platform Agnostic** | Seamlessly controls **Spotify** and **SoundCloud**. Modular design allows easy integration of new providers. |
 | **🌌 Immersive 3D UI** | Built with **React Three Fiber**. A digital orb and particle system that reacts to voice activity and music energy. |
 | **⚡ Low Latency** | Optimized architecture using **Redis** and **WebSockets** for instant playback control. |
 | **🔄 Smart Sync** | Background **Celery workers** keep libraries, playlists, and liked songs in sync across platforms. |
@@ -112,7 +112,7 @@ Create a `.env` file in the root directory.
 DATABASE_URL="postgresql://postgres:password@localhost:5432/sam_db"
 REDIS_HOST="localhost"
 REDIS_PORT=6379
-SESSION_SECRET_KEY="your-super-secret-key"
+SESSION_SECRET_KEY="your-session-secret-key"
 ```
 
 **AI & Voice**
@@ -124,14 +124,14 @@ GROQ_API_KEY="gsk_..."
 **Music Platforms**
 ```env
 # Spotify (https://developer.spotify.com/dashboard)
-SPOTIFY_CLIENT_ID="your_spotify_id"
-SPOTIFY_CLIENT_SECRET="your_spotify_secret"
+SPOTIFY_CLIENT_ID="your_spotify_client_id"
+SPOTIFY_CLIENT_SECRET="your_spotify_client_secret"
 SPOTIFY_REDIRECT_URI="http://localhost:8000/adpter/spotify/callback"
 
 # SoundCloud
 ENABLE_SOUNDCLOUD=true
-SOUNDCLOUD_CLIENT_ID="your_soundcloud_id"
-SOUNDCLOUD_CLIENT_SECRET="your_soundcloud_secret"
+SOUNDCLOUD_CLIENT_ID="your_soundcloud_client_id"
+SOUNDCLOUD_CLIENT_SECRET="your_soundcloud_client_secret"
 SOUNDCLOUD_REDIRECT_URI="http://localhost:8000/v1/adapter/soundcloud/callback"
 ```
 
@@ -143,7 +143,7 @@ SOUNDCLOUD_REDIRECT_URI="http://localhost:8000/v1/adapter/soundcloud/callback"
     ```bash
     sudo service redis-server start
     ```
-    *Note: Redis must be run inside WSL.*
+    *Note: Redis must run inside WSL(Windows Sub-System for Linux).*
 
 *   **1.2 macOS**:
     ```bash
@@ -165,6 +165,8 @@ uvicorn backend.main:app --reload
 ```bash
 # From root directory (Windows)
 celery -A backend.celery_worker worker --loglevel=info --pool=gevent
+
+# ignore --pool=gevent in Linux and macOS
 ```
 
 **4. Start Celery Beat (Periodic Scheduler)**
