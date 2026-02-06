@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query, HTTPException, Depends, Response, Cookie, Request
 from fastapi.responses import RedirectResponse
 import logging
+import os
 from typing import Optional
 from backend.adapters.spotify_adapter import SpotifyAdapter
 from backend.adapters.soundcloud_adapter import SoundCloudAdapter
@@ -159,8 +160,9 @@ def spotify_callback(request: Request, code: str = Query(...), db: Session = Dep
     # Trigger background sync to store user's liked songs and playlists
     sync_spotify_library.delay(account.id)
     
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
     return RedirectResponse(
-        url=f"http://localhost:5173/chat?platform=spotify&account_id={account.id}&user_id={system_user.id}"
+        url=f"{frontend_url}/chat?platform=spotify&account_id={account.id}&user_id={system_user.id}"
     )
 
     
@@ -265,6 +267,7 @@ def soundcloud_callback(
     # 2. Trigger Background Sync to store user's liked songs and playlists
     sync_soundcloud_library.delay(account.id)
 
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
     return RedirectResponse(
-        url=f"http://localhost:5173/chat?platform=soundcloud&account_id={account.id}&user_id={system_user.id}"
+        url=f"{frontend_url}/chat?platform=soundcloud&account_id={account.id}&user_id={system_user.id}"
     )
