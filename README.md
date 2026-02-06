@@ -163,7 +163,6 @@ SESSION_SECRET_KEY="your-session-secret-key"
 GROQ_API_KEY="gsk_..." 
 
 # --- Spotify ---
-# https://developer.spotify.com/dashboard
 SPOTIFY_CLIENT_ID="your_spotify_client_id"
 SPOTIFY_CLIENT_SECRET="your_spotify_client_secret"
 SPOTIFY_REDIRECT_URI="http://localhost:8000/adpter/spotify/callback"
