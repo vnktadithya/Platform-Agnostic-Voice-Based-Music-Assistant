@@ -46,6 +46,14 @@ SAM follows a clean, modular architecture designed for performance and scalabili
   <img src="docs/assets/architecture.png" alt="SAM Architecture Diagram" width="800" />
 </div>
 
+### System Workflow
+
+The following diagram details the end-to-end data flow, from user input to music execution.
+
+<div align="center">
+  <img src="docs/assets/process_workflow.png" alt="SAM Workflow Diagram" width="800" />
+</div>
+
 ### Project Structure
 
 ```bash

@@ -417,11 +417,6 @@ export const PlatformOrbit = ({ connecting, setConnecting, setHoveredColor, setH
 
                 {/* Render Connections */}
                 {PLATFORMS.map((p) => {
-                    // Only show connection if it's the one SAM is looking at OR if user explicitly clicked it (connecting state)
-                    // If connecting is set (user clicked), we might want to hide the background random ones?
-                    // User said: "Normally there should be no beam ... particles should be present only between SAM and the platform it is watching"
-                    // So if `activeLookingId` matches, we show it.
-                    // But also if `connecting` is true (user clicked), we probably want to show THAT one regardless of where SAM was looking.
 
                     const isLookingAt = activeLookingId === p.id;
                     const isConnecting = connecting === p.name; // 'connecting' uses p.name in original code, not p.id
