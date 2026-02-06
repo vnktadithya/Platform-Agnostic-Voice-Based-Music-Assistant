@@ -1,6 +1,6 @@
 # Extending SAM: How to Add a New Music Platform
 
-SAM is designed to be **Platform Agnostic**. Adding support for a new service (e.g., Apple Music, YouTube Music, Tidal) is a structured process involving both Backend logic and Frontend visuals.
+SAM is designed to be **Platform Agnostic**. Adding support for a new service (e.g., Apple Music, YouTube Music, Tidal) is an easy & structured process involving both Backend logic and Frontend visuals.
 
 ---
 
@@ -27,21 +27,24 @@ class NewPlatformAdapter(AdapterBase):
             "playback_control": True,
             "search": True
         }
+
+    .....
+# Implement all the actions supported by the specific API service
 ```
 
 ### 2. Implement Data Synchronization
 Update `backend/services/data_sync_service.py` to handle token refreshes and library fetching.
 
-1.  **Token Management**: Implement `refresh_newplatform_access_token(refresh_token)`.
-2.  **Valid Token Retrieval**: Implement `get_valid_newplatform_access_token(db, account)`.
+1.  **Token Management**: Implement `refresh_<newplatform>_access_token(refresh_token)`.
+2.  **Valid Token Retrieval**: Implement `get_valid_<newplatform>_access_token(db, account)`.
     *   *Logic*: Check DB expiration -> Return if valid -> Else refresh -> Update DB -> Return.
-3.  **Library Sync**: Implement `sync_newplatform_library(platform_account_id)`.
+3.  **Library Sync**: Implement `sync_<newplatform>_library(platform_account_id)`.
     *   Fetch playlists/liked songs and store them using `sync_user_library` (shared utility).
 
 ### 3. Register Routes & Auth
 Update `backend/api/v1/adapter_routes.py`:
-*   **GET** `/v1/adapter/newplatform/login`: Redirect user to the platform's OAuth page.
-*   **GET** `/v1/adapter/newplatform/callback`: Handle the redirect code, exchange for tokens, and create a `PlatformAccount` in the DB.
+*   **GET** `/v1/adapter/<newplatform>/login`: Redirect user to the platform's OAuth page.
+*   **GET** `/v1/adapter/<newplatform>/callback`: Handle the redirect code, exchange for tokens, and create a `PlatformAccount` in the DB.
 
 ### 4. Service Registry
 1.  **Music Action Service**: Update `backend/services/music_action_service.py` to recognize the new platform string and initialize your adapter.
@@ -52,6 +55,7 @@ Add credentials to `.env`:
 ```env
 NEWPLATFORM_CLIENT_ID="..."
 NEWPLATFORM_CLIENT_SECRET="..."
+NEWPLATFORM_REDIRECT_URI="..."
 ```
 
 ---
@@ -59,8 +63,8 @@ NEWPLATFORM_CLIENT_SECRET="..."
 ## 🎨 Frontend Implementation
 
 ### 1. Add Visual Assets
-1.  **Logo**: Add a transparent PNG to `frontend/public/logos/newplatform.png`.
-2.  **3D Model**: Add a `.glb` model to `frontend/public/models/newplatform.glb`.
+1.  **Logo**: Add a transparent PNG to `frontend/public/logos/<newplatform>.png`.
+2.  **3D Model**: Add a `.glb` model to `frontend/public/models/<newplatform>.glb`.
     *   *Tip*: Use `gltf-pipeline` to optimize it.
 
 ### 2. Register Variable Constants
@@ -80,9 +84,9 @@ const PLATFORMS = [
     { 
         id: 'newplatform', 
         name: 'New Platform', 
-        color: '#FF0000', 
+        color: 'platform color', 
         position: [x, y, z], // Choose a unique spot in 3D space
-        logo: '/logos/newplatform.png' 
+        logo: '/logos/<newplatform>.png' 
     }
 ];
 ```
