@@ -161,17 +161,3 @@ SAM relies on Celery for tasks that take >200ms.
 *   **Metric**: We purposely offload library synchronization to Celery to keep the Voice API response time under strict limits.
 *   **Worker**: Runs on `gevent` pool to handle I/O bound tasks.
 *   **Beat**: Schedules the `refresh_all_spotify_libraries` and `refresh_all_soundcloud_libraries` task every 6 hours. This helps us to get the data from the respective platform if user performs any action internally.
-
-**Commands:**
-```bash
-# Start Worker
-
-# For Windows
-celery -A backend.celery_worker worker --loglevel=info --pool=gevent
-
-# For Linux/macOS
-celery -A backend.celery_worker worker --loglevel=info
-
-# Start Scheduler
-celery -A backend.celery_worker beat --loglevel=info
-```
