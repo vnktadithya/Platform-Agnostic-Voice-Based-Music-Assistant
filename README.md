@@ -236,7 +236,7 @@ Once inside the application, click on mic button to activate the "Listening" sta
 
 ## 🤝 Contributing
 
-We welcome contributions! Please check the specific documentation for the component you want to modify:
+I welcome contributions! Please check the specific documentation for the component you want to modify:
 
 *   **[Backend Documentation](backend/README.md)**: API reference, Services, and Architecture deep dive.
 *   **[Frontend Documentation](frontend/README.md)**: Component structure, 3D Engine, and State Management.
