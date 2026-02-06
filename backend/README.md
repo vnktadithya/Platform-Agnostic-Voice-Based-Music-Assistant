@@ -6,12 +6,12 @@ The **SAM Backend** is a high-performance, asynchronous FastAPI application that
 
 ## 🛠️ Technical Stack
 
-**Core Framework**: Python 3.10+, FastAPI, Pydantic
-**Database**: PostgreSQL, SQLAlchemy (ORM), Redis
-**Real-time & Async**: Python-SocketIO, Uvicorn (ASGI)
-**Task Queue**: Celery (Gevent), Redis Broker
-**AI & Processing**: Groq Cloud (Llama 3, Whisper, TTS), TheFuzz
-**Testing**: Pytest
+- **Core Framework**: Python 3.10+, FastAPI, Pydantic
+- **Database**: PostgreSQL, SQLAlchemy (ORM), Redis
+- **Real-time & Async**: Python-SocketIO, Uvicorn (ASGI)
+- **Task Queue**: Celery (Gevent), Redis Broker
+- **AI & Processing**: Groq Cloud (Llama 3, Whisper, TTS), TheFuzz
+- **Testing**: Pytest
 
 ---
 
@@ -161,17 +161,3 @@ SAM relies on Celery for tasks that take >200ms.
 *   **Metric**: We purposely offload library synchronization to Celery to keep the Voice API response time under strict limits.
 *   **Worker**: Runs on `gevent` pool to handle I/O bound tasks.
 *   **Beat**: Schedules the `refresh_all_spotify_libraries` and `refresh_all_soundcloud_libraries` task every 6 hours. This helps us to get the data from the respective platform if user performs any action internally.
-
-**Commands:**
-```bash
-# Start Worker
-
-# For Windows
-celery -A backend.celery_worker worker --loglevel=info --pool=gevent
-
-# For Linux/macOS
-celery -A backend.celery_worker worker --loglevel=info
-
-# Start Scheduler
-celery -A backend.celery_worker beat --loglevel=info
-```
