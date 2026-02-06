@@ -47,8 +47,102 @@ Update `backend/api/v1/adapter_routes.py`:
 *   **GET** `/v1/adapter/<newplatform>/callback`: Handle the redirect code, exchange for tokens, and create a `PlatformAccount` in the DB.
 
 ### 4. Service Registry
-1.  **Music Action Service**: Update `backend/services/music_action_service.py` to recognize the new platform string and initialize your adapter.
-2.  **Dialog Manager** (Optional): If the platform has unique actions (e.g., "Thumbs Up"), update `_handle_music_action` in `backend/services/dialog_manager.py`.
+You need to register your new platform in two key services to handle credentials and action dispatching.
+
+#### **A. Music Action Service (`backend/services/music_action_service.py`)**
+
+1. Add a helper method to initialize your adapter.
+2. Update `perform_music_action` to check capabilities.
+3. Implement platform-specific action methods (e.g., `_newplatform_play_song`).
+
+```python
+# [Inside MusicActionService class]
+
+    @staticmethod
+    def _get_newplatform_adapter(parameters: Dict) -> NewPlatformAdapter:
+        token = parameters.get("access_token")
+        if not token:
+             raise RuntimeError("NewPlatform access_token missing.")
+        return NewPlatformAdapter(token)
+
+    # ... existing methods ...
+
+    @staticmethod
+    def perform_music_action(action: str, platform: str, parameters: Dict = {}) -> str:
+        # ... existing capability check ...
+
+        if required_cap:
+             # Add your platform here
+             if platform == "spotify":
+                 caps = SpotifyAdapter.get_capabilities()
+             elif platform == "newplatform":  # <--- ADD THIS
+                 caps = NewPlatformAdapter.get_capabilities()
+        
+        # ... rest of the function ...
+
+    # --- Implement Platform Specific Actions ---
+    
+    @staticmethod
+    def _newplatform_play_song(parameters: Dict):
+        """
+        Example implementation of a play action for the new platform.
+        This roughly matches the pattern used by _spotify_play_song.
+        """
+        return MusicActionService._get_newplatform_adapter(parameters).play_by_query(
+            parameters["db_session"],
+            parameters["platform_account_id"],
+            parameters.get("song_name", ""),
+            resolve_only=parameters.get("resolve_only", False)
+        )
+```
+
+#### **B. Dialog Manager (`backend/services/dialog_manager.py`)**
+
+Update the logic to retrieve credentials for your new platform.
+
+```python
+# [Inside DialogManager class]
+
+    def _get_platform_credentials(self) -> dict:
+        # ... existing code ...
+        
+            if self.platform == "spotify":
+                access_token = get_valid_spotify_access_token(self.db, account)
+                return {"platform": "spotify", "credentials" : {"access_token": access_token}}
+            
+            # <--- ADD THIS BLOCK --->
+            if self.platform == "newplatform":
+                access_token = get_valid_newplatform_access_token(self.db, account)
+                return {"platform": "newplatform", "credentials" : {"access_token": access_token}}
+            # <---------------------->
+
+            raise ValueError(f"Unsupported platform: {self.platform}")
+```
+
+And update the `_handle_music_action` method to initialize the adapter context (like user ID).
+
+```python
+# [Inside DialogManager class]
+
+    async def _handle_music_action(self, action: str, parameters: dict):
+        # ... credentials resolution ...
+
+        # ---------- Spotify path ----------
+        if platform == "spotify":
+            # ... existing spotify logic ...
+
+        # <--- ADD THIS BLOCK --->
+        elif platform == "newplatform":
+             complete_params["access_token"] = access_token
+             # If your adapter needs specific user info initialized:
+             adapter = NewPlatformAdapter(access_token=access_token)
+             user = adapter.get_me() 
+             complete_params["user_id"] = user["id"]
+        # <---------------------->
+
+        else:
+            raise ValueError(f"Unsupported platform: {platform}")
+```
 
 ### 5. Config
 Add credentials to `.env`:
