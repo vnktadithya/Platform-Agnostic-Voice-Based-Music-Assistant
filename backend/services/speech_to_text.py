@@ -47,7 +47,21 @@ class SpeechToTextService:
                 "prompt": prompt_text
             }
             
-            response = requests.post(url, headers=headers, files=files, data=data, timeout=30)
+            # Use a session with retry logic
+            from requests.adapters import HTTPAdapter
+            from urllib3.util.retry import Retry
+            
+            session = requests.Session()
+            retry_strategy = Retry(
+                total=3,
+                backoff_factor=1,
+                status_forcelist=[429, 500, 502, 503, 504],
+                allowed_methods=["POST"]
+            )
+            adapter = HTTPAdapter(max_retries=retry_strategy)
+            session.mount("https://", adapter)
+            
+            response = session.post(url, headers=headers, files=files, data=data, timeout=30)
             
             if response.status_code != 200:
                 logger.error(f"Groq STT Error: {response.text}")
@@ -60,5 +74,5 @@ class SpeechToTextService:
             return transcript
 
         except Exception as e:
-            logger.error("Groq STT failed", exc_info=True)
+            logger.error(f"Groq STT failed: {str(e)}", exc_info=True)
             raise e
