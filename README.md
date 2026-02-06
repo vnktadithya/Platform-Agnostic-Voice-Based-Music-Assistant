@@ -111,6 +111,10 @@ Before setting up SAM, ensure you meet the requirements for the music platforms 
 > * **SoundCloud Integration Requirements:**
 > 1.   **Active Account**: A free SoundCloud account is sufficient. No premium subscription is needed.
 > 2.   Register your new soundcloud application: [Create SoundCloud Application](https://soundcloud.com/you/apps/new).
+>
+> * **Groq API key:**
+> 
+>   Get your API key here: [API keys - GroqCloud](https://console.groq.com/keys)
 
 ---
 
