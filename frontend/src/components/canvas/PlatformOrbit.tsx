@@ -389,7 +389,7 @@ export const PlatformOrbit = ({ connecting, setConnecting, setHoveredColor, setH
         prefetchRef.current = prefetch();
     };
 
-    const handleConnectionComplete = async (platformId: string) => {
+    const handleConnectionComplete = async () => {
         // 3. Wait for BOTH animation (this function call) AND network (stored promise)
         if (prefetchRef.current) {
             try {
@@ -430,7 +430,7 @@ export const PlatformOrbit = ({ connecting, setConnecting, setHoveredColor, setH
                             end={p.position as [number, number, number]}
                             color={p.color}
                             active={isConnecting} // This triggers "DNA Helix" mode
-                            onConnected={() => handleConnectionComplete(p.id)}
+                            onConnected={() => handleConnectionComplete()}
                         />
                     );
                 })}
