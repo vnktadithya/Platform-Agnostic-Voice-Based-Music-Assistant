@@ -243,9 +243,9 @@ Once inside the application, click on mic button to activate the "Listening" sta
 
 I welcome contributions! Please check the specific documentation for the component you want to modify:
 
-*   **[Backend Documentation](backend/README.md)**: API reference, Services, and Architecture deep dive.
-*   **[Frontend Documentation](frontend/README.md)**: Component structure, 3D Engine, and State Management.
-*   **[Adding New Platforms](ADDING_NEW_PLATFORMS.md)**: Step-by-step guide to integrating Apple Music, YouTube, etc.
+*   **[Backend Documentation](backend/README.md)**: Tech-Stack, API reference, Services, and Architecture deep dive.
+*   **[Frontend Documentation](frontend/README.md)**: Tech-Stack, Component structure, 3D Engine, and State Management.
+*   **[Adding New Platforms](ADDING_NEW_PLATFORMS.md)**: Step-by-step guide to integrating any other music platform(providing API service).
 
 ---
 
