@@ -5,7 +5,7 @@ import { executeAction } from '../services/api';
 
 export const useAudioController = (scTrackUrl: string | null) => {
     const { activePlatform, accountId } = useStore();
-    const { setVolume: setScVolume } = useSoundCloud(activePlatform, scTrackUrl);
+    const { setVolume: setScVolume, getVolume: getScVolume } = useSoundCloud(activePlatform, scTrackUrl);
 
     const preDuckVolume = useRef<number | null>(null);
 
@@ -30,7 +30,11 @@ export const useAudioController = (scTrackUrl: string | null) => {
                 executeAction({ type: 'set_volume', params: { volume: 40 } }, 'spotify', accountId);
                 await new Promise(r => setTimeout(r, 100)); // Small delay for effect
             } else if (activePlatform === 'soundcloud') {
-                setScVolume(40);
+                // Fetch current volume before ducking
+                const currentVol = await getScVolume();
+                preDuckVolume.current = currentVol;
+                console.log("Saved SC Pre-Duck Volume:", currentVol);
+                setScVolume(0); // Duck to 0% (Mute) to prevent STT interference
             }
         } catch (e) {
             console.warn("Ducking failed", e);
@@ -46,7 +50,8 @@ export const useAudioController = (scTrackUrl: string | null) => {
                 executeAction({ type: 'set_volume', params: { volume: restoreVol } }, 'spotify', accountId);
                 preDuckVolume.current = null; // Reset
             } else if (activePlatform === 'soundcloud') {
-                setScVolume(100);
+                const restoreVol = preDuckVolume.current !== null ? preDuckVolume.current : 100;
+                setScVolume(restoreVol);
             }
         } catch (e) {
             console.warn("Unducking failed", e);

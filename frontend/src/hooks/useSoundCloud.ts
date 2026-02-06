@@ -29,5 +29,22 @@ export const useSoundCloud = (activePlatform: string, scTrackUrl: string | null)
         }
     };
 
-    return { scWidgetRef, setVolume };
+    const getVolume = (): Promise<number> => {
+        return new Promise((resolve) => {
+            if (scWidgetRef.current) {
+                const timeoutId = setTimeout(() => {
+                    resolve(100);
+                }, 200);
+
+                scWidgetRef.current.getVolume((vol: number) => {
+                    clearTimeout(timeoutId);
+                    resolve(vol);
+                });
+            } else {
+                resolve(100); // Default if widget not ready
+            }
+        });
+    };
+
+    return { scWidgetRef, setVolume, getVolume };
 };

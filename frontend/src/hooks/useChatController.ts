@@ -115,6 +115,10 @@ export const useChatController = () => {
     const handleInteractionStart = async () => {
         if (samState === 'IDLE') {
             try {
+                // IMMEDIATE DUCK: Lower volume when user wants to speak (SoundCloud Only)
+                if (activePlatform === 'soundcloud') {
+                    await duckAudio();
+                }
                 setSamState('LISTENING');
                 await voiceClient.startRecording();
                 startMicAnalysis();
@@ -122,8 +126,16 @@ export const useChatController = () => {
                 console.error(e);
                 addToast("Microphone access failed.", 'error');
                 setSamState('IDLE');
+                // Restore volume if mic fails
+                if (activePlatform === 'soundcloud') {
+                    unduckAudio();
+                }
             }
         } else if (samState === 'LISTENING') {
+            // IMMEDIATE UNDUCK: Restore volume when user is done speaking (SoundCloud Only)
+            if (activePlatform === 'soundcloud') {
+                unduckAudio();
+            }
             setSamState('THINKING');
             stopMicAnalysis();
             try {
