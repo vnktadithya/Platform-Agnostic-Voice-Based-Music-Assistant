@@ -4,7 +4,7 @@ The visual interface of **SAM**. Built with **React** and **Three.js** (@react-t
 
 ---
 
-## 🏗️ Technical Stack
+## 🏗️ Tech-Stack
 
 - **Core**: React 18, TypeScript, Vite
 - **Routing**: Wouter
@@ -12,22 +12,6 @@ The visual interface of **SAM**. Built with **React** and **Three.js** (@react-t
 - **State Management**: Zustand (Persisted)
 - **Styling**: Tailwind CSS, Framer Motion
 - **Networking**: Axios (REST), Socket.IO (Real-time events)
-
----
-
-## 📂 Project Structure
-
-```
-frontend/src/
-├── components/
-│   ├── canvas/         # 3D Scene components (Orb, Tether, Particles)
-│   ├── overlay/        # 2D HUD elements (Widgets, Alerts, Input)
-│   └── ui/             # Reusable UI primitives (Toast, etc.)
-├── pages/              # Main application views (Landing, PlatformSelect, Chat)
-├── store/              # Global state management
-├── services/           # API clients and audio handling
-└── hooks/              # Custom React hooks for logic and controllers
-```
 
 ---
 
@@ -75,12 +59,19 @@ Global state is centralized in **`store/useStore.ts`** using **Zustand**.
 ## 🎨 Asset Workflow
 
 **Optimizing 3D Models (.glb)**
-All 3D assets in `public/models/` must be optimized to ensure performance.
+All 3D assets in `public/models/` must be optimized and converted to React components to ensure performance.
 1.  **Compress**: Use `gltf-pipeline` with Draco compression.
     ```bash
-    gltf-pipeline -i model.glb -o model-opt.glb --draco
+    npx gltf-pipeline -i model.glb -o model-opt.glb --draco
     ```
-2.  **Preload**: Use the `useGLTF.preload` method in React to prevent pop-in.
+-   **Output**: Creates model-opt.glb in the current folder.
+-   **Action**: Ensure this binary file stays in public/models/.
+
+2. **Generate Component**: Create the React Three Fiber component.
+    ```bash
+    npx gltfjsx model-opt.glb --types
+    ```
+3.  **Preload**: The generated file will include useGLTF.preload, but ensure the path matches your public directory structure (e.g., /models/model-opt.glb).
 
 ---
 
