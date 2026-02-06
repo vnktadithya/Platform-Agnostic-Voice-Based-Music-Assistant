@@ -6,12 +6,12 @@ The **SAM Backend** is a high-performance, asynchronous FastAPI application that
 
 ## 🛠️ Technical Stack
 
-**Core Framework**: Python 3.10+, FastAPI, Pydantic
-**Database**: PostgreSQL, SQLAlchemy (ORM), Redis
-**Real-time & Async**: Python-SocketIO, Uvicorn (ASGI)
-**Task Queue**: Celery (Gevent), Redis Broker
-**AI & Processing**: Groq Cloud (Llama 3, Whisper, TTS), TheFuzz
-**Testing**: Pytest
+- **Core Framework**: Python 3.10+, FastAPI, Pydantic
+- **Database**: PostgreSQL, SQLAlchemy (ORM), Redis
+- **Real-time & Async**: Python-SocketIO, Uvicorn (ASGI)
+- **Task Queue**: Celery (Gevent), Redis Broker
+- **AI & Processing**: Groq Cloud (Llama 3, Whisper, TTS), TheFuzz
+- **Testing**: Pytest
 
 ---
 
