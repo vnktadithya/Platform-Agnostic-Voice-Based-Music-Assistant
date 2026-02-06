@@ -35,6 +35,7 @@ All of this happens within a stunning **3D immersive interface** built with Reac
 | **🌌 Immersive 3D UI** | A cinematic experience built with **Three.js**. The "Living Tether" connecting SAM to platforms physically reacts to data flow and music energy. |
 | **⚡ Low Latency** | Optimized architecture using **Redis** for caching and **WebSockets** for real-time state synchronization (< 500ms response time). |
 | **🔄 Smart Sync** | Background **Celery workers** keep your playlists, liked songs, and libraries in sync across all connected platforms. |
+| **🧠 Adaptive Intelligence** | Logs user interactions and feedback to build a dataset for future fine-tuning, allowing the model to learn your preferences over time. |
 
 ---
 
