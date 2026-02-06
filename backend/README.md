@@ -17,7 +17,7 @@ The backend prioritizes **latency** and **accuracy**. The core processing loop i
     *   **Engine**: Groq (Llama 3-8b-8192).
     *   **Service**: `LLM_service.py` wraps the LLM calls.
     *   **Context**: Controlled by `DialogManager`, which maintains a session history (via `SessionManager` + Redis) to support follow-up queries (e.g., "Play it" implies the song mentioned previously).
-    *   **Output**: Structured JSON containing the `action` (PLAY, PAUSE, ETC), `parameters` (song name), and `reply` (text response).
+    *   **Output**: Structured JSON containing the `action` (PLAY, PAUSE, ADD_TO_PLAYLIST, LIKE_SONG ETC), `parameters` (song_name, artist_name, playlist_name etc), and `reply` (text response).
 3.  **Action Execution**:
     *   **Service**: `MusicActionService` is the central dispatcher.
     *   It determines the **Active Platform** (Spotify vs. SoundCloud) based on user preference or explicit command.
@@ -26,10 +26,10 @@ The backend prioritizes **latency** and **accuracy**. The core processing loop i
     *   The system returns the response immediately, often including the TTS audio (or audio path) and the execution status in a single JSON payload.
 
 ### 2. Intelligent Caching Layer
-To bypass the latency of external Music APIs, we use a 3-tier search strategy:
+To bypass the latency of external Music APIs, We use a 3-tier search strategy:
 *   **Tier 1 (Redis)**: Hot cache for identical queries made recently.
 *   **Tier 2 (PostgreSQL `search_cache`)**: Persistent cache of "normalized" queries.
-    *   *Example*: "Play Nuvvu-Nenantu" and "play nuvvu nenantu song" both resolve to the same cached track URI.
+    *   *Example*: "Play ShaPE _oF-You" and "play shape of you song" both resolve to **shape of you**-the same cached track URI.
 *   **Tier 3 (Platform API)**: The fallback. Results are immediately cached to Tier 1 & 2.
 
 ---
@@ -48,7 +48,7 @@ The logic is modularized into `backend/services/`:
 | **`library_sync_service.py`** | Handles the massive job of fetching, parsing, and storing thousands of songs/playlists from Spotify/SoundCloud into our local DB. |
 | **`data_sync_service.py`** | The "Glue" connecting Celery workers to the sync logic. Handles token refreshing and task distribution. |
 | **`speech_to_text.py`** | Wrapper for Groq's transcription API. |
-| **`text_to_speech.py`** | Wrapper for ElevenLabs (or fallback TTS systems). |
+| **`text_to_speech.py`** | Wrapper for Groq's TTS API service. |
 | **`cache_service.py`** | Abstracted interface for Redis operations. |
 
 ---
@@ -61,31 +61,42 @@ We use **SQLAlchemy** ORM. Key tables in `backend/models/database_models.py`:
 The root entity.
 *   `id`: Int (Primary Key)
 *   `email`: User's identifier.
+*   `created_at`: Timestamp of the account creation.
 
 ### `platform_accounts`
 Stores the credentials for connected services.
-*   `system_user_id`: FK to User.
+*   `id`: Primary key.
+*   `system_user_id`: Foreign Key to **system_users**.
 *   `platform_name`: "spotify" | "soundcloud".
 *   `access_token`, `refresh_token`: Encrypted storage.
 *   `meta_data`: JSON column for platform-specific extras (profile pic, user URI).
 *   `last_synced`: Timestamp of the last full library sync.
 
 ### `user_playlists` & `user_liked_songs`
-Mirrors of the user's remote library.
-*   `platform_account_id`: FK to Platform Account.
+Mirror the user's remote library.
+*   `id`: Primary key.
+*   `platform_account_id`: Foreign Key to Platform Account.
 *   `track_uri` / `playlist_id`: Unique identifiers.
 *   `meta_data`: JSON storing names, artists, album art, etc.
+*   `last_synced`: Timestamp of the last library sync.
 
 ### `search_cache`
 The secret sauce for speed.
+*   `id`: Primary key
+*   `platform_account_id`: Foreign Key to Platform Account.
 *   `normalized_query`: The standardized version of the user's search text.
 *   `track_uri`: The resolved actionable URI (e.g., `spotify:track:123`).
 *   `meta_data`: Additional info like song title/artist for verification.
+*   `timestamp`: Timestamp of the last library sync.
 
 ### `interaction_logs`
+*   `id`: Primary key
+*   `platform_account_id`: Foreign Key to Platform Account.
+*   `session_id`: Session id provided by browser.
 *   `user_input`: The text of what the user said.
-*   `llm_response`: The full JSON decision tree from the AI.
+*   `llm_response`: The full JSON response from the LLM.
 *   `final_action`: The executed action (e.g., `play_song`), for analytics.
+*   `timestamp`: Timestamp of the last interaction.
 
 ---
 
@@ -137,13 +148,18 @@ pytest backend/tests/test_integration.py
 SAM relies on Celery for tasks that take >200ms.
 
 *   **Metric**: We purposely offload library synchronization to Celery to keep the Voice API response time under strict limits.
-*   **Worker**: Runs on `gevent` pool to handle I/O bound tasks (network requests to Spotify).
-*   **Beat**: Schedules the `refresh_all_spotify_libraries` task every 6 hours.
+*   **Worker**: Runs on `gevent` pool to handle I/O bound tasks.
+*   **Beat**: Schedules the `refresh_all_spotify_libraries` and `refresh_all_soundcloud_libraries` task every 6 hours. This helps us to get the data from the respective platform if user performs any action internally.
 
 **Commands:**
 ```bash
 # Start Worker
+
+# For Windows
 celery -A backend.celery_worker worker --loglevel=info --pool=gevent
+
+# For Linux/macOS
+celery -A backend.celery_worker worker --loglevel=info
 
 # Start Scheduler
 celery -A backend.celery_worker beat --loglevel=info
