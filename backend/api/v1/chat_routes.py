@@ -5,6 +5,7 @@ import wave
 import io
 import logging
 import asyncio
+import requests
 from fastapi import APIRouter, File, UploadFile, HTTPException, Query, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -158,6 +159,12 @@ async def process_chat_voice(
 
         return JSONResponse(content=response)
 
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Voice service connection failed: {e}")
+        raise HTTPException(
+            status_code=504, 
+            detail="Voice service connection timed out. Please check your internet connection and try again."
+        )
     except (DeviceNotFoundException, ExternalAPIError, AuthenticationError):
         raise
     except Exception as e:

@@ -13,6 +13,7 @@ from backend.configurations.database import SessionLocal
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 from backend.utils.custom_exceptions import AuthenticationError
+from backend.utils.encryption import encrypt_token, decrypt_token
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ def get_valid_spotify_access_token(db, account: PlatformAccount) -> str:
     logger.debug("Meta data raw: %s", account.meta_data)
 
     meta = account.meta_data or {}
-    access_token = meta.get("access_token")
+    access_token = decrypt_token(meta.get("access_token"))
     expires_at = meta.get("expires_at")
 
     # If token exists and is still valid → reuse
@@ -76,7 +77,9 @@ def get_valid_spotify_access_token(db, account: PlatformAccount) -> str:
     logger.info("Spotify token expired or missing for platform_account_id=%s. Refreshing…", account.id)
 
     try:
-        token_data = refresh_spotify_access_token(account.refresh_token)
+        # Decrypt refresh token before using
+        decrypted_refresh = decrypt_token(account.refresh_token)
+        token_data = refresh_spotify_access_token(decrypted_refresh)
     except Exception as e:
         logger.error("Spotify token refresh failed for platform_account_id=%s: %s", account.id, e)
         
@@ -89,7 +92,7 @@ def get_valid_spotify_access_token(db, account: PlatformAccount) -> str:
 
     account.meta_data = {
         **meta,
-        "access_token": token_data["access_token"],
+        "access_token": encrypt_token(token_data["access_token"]),
         "expires_at": token_data["expires_at"],
         "scope": token_data.get("scope"),
         "token_type": token_data.get("token_type", "Bearer")
@@ -162,7 +165,7 @@ def get_valid_soundcloud_access_token(db, account: PlatformAccount) -> str:
     """
     logger.debug("get_valid_soundcloud_access_token START for account %s", account.id)
     meta = account.meta_data or {}
-    access_token = meta.get("access_token")
+    access_token = decrypt_token(meta.get("access_token"))
     expires_at = meta.get("expires_at")
 
     # 1. Check validity
@@ -185,7 +188,8 @@ def get_valid_soundcloud_access_token(db, account: PlatformAccount) -> str:
          raise ValueError("No refresh token available for SoundCloud account.")
 
     try:
-        token_data = refresh_soundcloud_access_token(account.refresh_token)
+        decrypted_refresh = decrypt_token(account.refresh_token)
+        token_data = refresh_soundcloud_access_token(decrypted_refresh)
     except Exception as e:
         logger.error("SoundCloud refresh failed: %s", e)
         
@@ -198,11 +202,11 @@ def get_valid_soundcloud_access_token(db, account: PlatformAccount) -> str:
     # 3. Update DB
     # Update refresh token if shifted
     if token_data.get("refresh_token"):
-        account.refresh_token = token_data["refresh_token"]
+        account.refresh_token = encrypt_token(token_data["refresh_token"])
 
     account.meta_data = {
         **meta,
-        "access_token": token_data["access_token"],
+        "access_token": encrypt_token(token_data["access_token"]),
         "expires_at": token_data["expires_at"],
         "scope": token_data.get("scope")
     }

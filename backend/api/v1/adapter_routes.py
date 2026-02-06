@@ -9,6 +9,7 @@ from backend.services.data_sync_service import sync_spotify_library, sync_soundc
 from backend.configurations.database import get_db
 from backend.utils.feature_flags import is_soundcloud_enabled
 from sqlalchemy.orm import Session
+from backend.utils.encryption import encrypt_token
 
 
 router = APIRouter(tags=["Adapter"])
@@ -110,9 +111,9 @@ def spotify_callback(request: Request, code: str = Query(...), db: Session = Dep
         system_user = account.owner
         
         # Update metadata
-        account.refresh_token = tokens["refresh_token"] or account.refresh_token
+        account.refresh_token = encrypt_token(tokens["refresh_token"]) or account.refresh_token
         account.meta_data = {
-            "access_token": tokens["access_token"],
+            "access_token": encrypt_token(tokens["access_token"]),
             "expires_at": tokens["expires_at"],
             "scope": tokens.get("scope"),
             "token_type": tokens.get("token_type"),
@@ -135,9 +136,9 @@ def spotify_callback(request: Request, code: str = Query(...), db: Session = Dep
             system_user_id=system_user.id,
             platform_name="spotify",
             platform_user_id=platform_user_id,
-            refresh_token=tokens["refresh_token"],
+            refresh_token=encrypt_token(tokens["refresh_token"]),
             meta_data={
-                "access_token": tokens["access_token"],
+                "access_token": encrypt_token(tokens["access_token"]),
                 "expires_at": tokens["expires_at"],
                 "scope": tokens.get("scope"),
                 "token_type": tokens.get("token_type"),
@@ -224,9 +225,9 @@ def soundcloud_callback(
 
     if account:
          # Update existing account
-         account.refresh_token = data.get("refresh_token")
+         account.refresh_token = encrypt_token(data.get("refresh_token"))
          account.meta_data = {
-            "access_token": data["access_token"],
+            "access_token": encrypt_token(data["access_token"]),
             **data["meta_data"]
          }
          # If the account's system user is missing email but we have one now, update it
@@ -245,9 +246,9 @@ def soundcloud_callback(
             system_user_id=system_user.id,
             platform_name="soundcloud",
             platform_user_id=data["platform_user_id"],
-            refresh_token=data.get("refresh_token"),
+            refresh_token=encrypt_token(data.get("refresh_token")),
             meta_data={
-                "access_token": data["access_token"],
+                "access_token": encrypt_token(data["access_token"]),
                 **data["meta_data"]
             }
         )
