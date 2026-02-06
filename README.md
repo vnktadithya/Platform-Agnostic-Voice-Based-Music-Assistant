@@ -31,6 +31,7 @@ All of this happens within a stunning **3D immersive interface** built with Reac
 | Feature | Description |
 | :--- | :--- |
 | **🗣️ Conversational AI** | Powered by **Groq (Llama 3)** for near-instant natural language understanding. Context-aware interactions allow for follow-up requests. |
+| **🚀 Powered by Groq LPU** | Utilizes Language Processing Units for deterministic, memory-safe inference. This eliminates the GPU memory bottleneck, delivering text/audio generation in milliseconds—critical for real-time voice interaction. |
 | **🎵 Platform Agnostic** | Seamlessly controls **Spotify** and **SoundCloud** from a single interface. Extensible design allows easy addition of new music providers. |
 | **🌌 Immersive 3D UI** | A cinematic experience built with **Three.js**. The "Living Tether" connecting SAM to platforms physically reacts to data flow and music energy. |
 | **⚡ Low Latency** | Optimized architecture using **Redis** for caching and **WebSockets** for real-time state synchronization (< 500ms response time). |
