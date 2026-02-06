@@ -103,13 +103,14 @@ personal-voice-assistant/
 Before setting up SAM, ensure you meet the requirements for the music platforms you intend to use.
 
 > [!IMPORTANT]
-> **Spotify Integration Requirements:**
+> * **Spotify Integration Requirements:**
 > 1.  **Premium Subscription**: Spotify's API restricts playback control to Premium users only.
-> 2.  **Developer Dashboard**: Since this app is in "Development Mode", you **MUST** manually add your email address to the allowed users list in your [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
-
-> [!NOTE]
-> **SoundCloud Integration Requirements:**
-> *   **Active Account**: A free SoundCloud account is sufficient. No premium subscription is needed.
+> 2.  **Developer Dashboard**: Since this app is in "Development Mode", you **MUST** manually create an app and add your email address to the allowed users list in your [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
+>
+> 
+> * **SoundCloud Integration Requirements:**
+> 1.   **Active Account**: A free SoundCloud account is sufficient. No premium subscription is needed.
+> 2.   Register your new soundcloud application: [Create SoundCloud Application](https://soundcloud.com/you/apps/new).
 
 ---
 
