@@ -100,7 +100,7 @@ personal-voice-assistant/
 
 ## ⚠️ Service Requirements
 
-Before setting up SAM, ensure you meet the requirements for the music platforms you intend to use.
+Before setting up SAM, ensure you meet the requirements for the music platforms and Groq services you intend to use.
 
 > [!IMPORTANT]
 > * **Spotify Integration Requirements:**
@@ -161,6 +161,7 @@ DATABASE_URL="postgresql://postgres:password@localhost:5432/sam_db"
 REDIS_HOST="localhost"
 REDIS_PORT=6379
 SESSION_SECRET_KEY="your-session-secret-key"
+ENCRYPTION_KEY = "your-encryption-key"
 
 # --- AI & Voice ---
 # Logic, TTS & STT: https://console.groq.com/keys
@@ -177,6 +178,23 @@ SOUNDCLOUD_CLIENT_ID="your_soundcloud_client_id"
 SOUNDCLOUD_CLIENT_SECRET="your_soundcloudc_client_secret"
 SOUNDCLOUD_REDIRECT_URI="http://localhost:8000/v1/adapter/soundcloud/callback"
 ```
+
+> [!Note]
+> * **Session Secret key:**
+>  
+>   Run the following in the terminal to get a session secret key:
+>   
+>    ```bash
+>    python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+>    ```
+>    
+> * **Encryption key:**
+>  
+>   Run the following in the terminal to get an encryption key:
+>   
+>    ```bash
+>    python -c "import secrets; print(secrets.token_hex(32))"
+>    ```
 
 ### 3. Running the Application
 
