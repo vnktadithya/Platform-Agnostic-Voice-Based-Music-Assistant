@@ -9,6 +9,10 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.10.12"
+      - key: ENV
+        value: "production"
+      - key: ENCRYPTION_KEY
+        sync: false
       - key: DATABASE_URL
         sync: false
       - key: REDIS_URL

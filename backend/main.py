@@ -37,17 +37,25 @@ logger.info("Voice Assistant Backend starting up")
 
 # Load Session Secret
 session_secret = os.getenv("SESSION_SECRET_KEY")
+env = os.getenv("ENV", "development")
+
 if not session_secret:
-    if os.getenv("ENV", "development") == "production":
+    if env == "production":
          logger.critical("SESSION_SECRET_KEY is missing in production!")
          raise ValueError("SESSION_SECRET_KEY must be set in .env for production.")
     else:
         logger.warning("SESSION_SECRET_KEY is missing. Using insecure default for dev.")
         session_secret = "dev-secret-change-this"
 
+# Configure Session Middleware based on environment
+secure_cookie = env == "production"
+samesite_policy = "none" if env == "production" else "lax"
+
 app.add_middleware(
     SessionMiddleware,
     secret_key=session_secret,
+    https_only=secure_cookie,
+    same_site=samesite_policy
 )
 
 app.include_router(adapter_router, prefix="/v1")
@@ -90,7 +98,8 @@ origins = [
     "http://127.0.0.1:3000",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
-    "https://sam-self-adaptive-music-intelligence.vercel.app"   # production
+    "https://sam-self-adaptive-music-intelligence.vercel.app",   # production
+    "https://*.vercel.app" # Allow Vercel preview deployments
 ]
 
 app.add_middleware(
