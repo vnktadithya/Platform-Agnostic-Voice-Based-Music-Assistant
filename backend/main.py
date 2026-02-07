@@ -90,6 +90,14 @@ async def external_api_error_handler(request: Request, exc: ExternalAPIError):
         content={"detail": exc.message, "code": "EXTERNAL_API_ERROR"},
     )
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Global exception caught: {str(exc)}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal Server Error: {str(exc)}", "type": str(type(exc).__name__)},
+    )
+
 # CORS Configuration
 origins = [
     "http://localhost:5173",  # Vite Dev Server

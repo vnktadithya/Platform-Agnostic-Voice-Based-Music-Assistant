@@ -161,7 +161,7 @@ def spotify_callback(request: Request, code: str = Query(...), db: Session = Dep
         # Trigger background sync to store user's liked songs and playlists
         sync_spotify_library.delay(account.id)
         
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
         return RedirectResponse(
             url=f"{frontend_url}/chat?platform=spotify&account_id={account.id}&user_id={system_user.id}"
         )
@@ -272,7 +272,7 @@ def soundcloud_callback(
         # 2. Trigger Background Sync to store user's liked songs and playlists
         sync_soundcloud_library.delay(account.id)
 
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
         return RedirectResponse(
             url=f"{frontend_url}/chat?platform=soundcloud&account_id={account.id}&user_id={system_user.id}"
         )
