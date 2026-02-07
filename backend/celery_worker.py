@@ -6,7 +6,7 @@ from backend.models import database_models
 import logging
 
 logger = logging.getLogger(__name__)
-database_models.Base.metadata.create_all(bind=engine)
+# database_models.Base.metadata.create_all(bind=engine)
 redis_url = os.getenv('REDIS_URL')
 if not redis_url:
     redis_url = f"redis://{os.getenv('REDIS_HOST', 'localhost')}:{os.getenv('REDIS_PORT', 6379)}/1"
