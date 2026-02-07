@@ -31,3 +31,5 @@ services:
         sync: false
       - key: SOUNDCLOUD_REDIRECT_URI
         sync: false
+      - key: ENABLE_SOUNDCLOUD
+        value: "true"

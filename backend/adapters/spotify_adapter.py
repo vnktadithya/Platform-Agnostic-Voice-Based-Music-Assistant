@@ -123,7 +123,7 @@ class SpotifyAdapter(MusicPlatformAdapter):
         return SpotifyOAuth(
             client_id=os.getenv("SPOTIFY_CLIENT_ID"),
             client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
-            redirect_uri=os.getenv("SPOTIFY_REDIRECT_URI", "http://127.0.0.1:8000/adapter/spotify/callback"),
+            redirect_uri=os.getenv("SPOTIFY_REDIRECT_URI", "http://127.0.0.1:8000/v1/adapter/spotify/callback"),
             scope=(
                     "user-read-private user-read-email "
                     "user-library-read user-library-modify "
