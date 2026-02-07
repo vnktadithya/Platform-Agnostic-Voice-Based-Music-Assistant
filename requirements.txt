@@ -12,6 +12,7 @@ sqlalchemy
 redis
 celery
 gevent
+itsdangerous
 thefuzz
 authlib
 pytest
