@@ -373,7 +373,7 @@ export const PlatformOrbit = ({ connecting, setConnecting, setHoveredColor, setH
                 // Check status first
                 const status = await getPlatformStatus(platformId);
                 if (status && status.is_connected && status.account_id && status.user_id) {
-                    return `http://localhost:5173/chat?platform=${platformId}&account_id=${status.account_id}&user_id=${status.user_id}&has_device=${status.has_active_device}`;
+                    return `${window.location.origin}/chat?platform=${platformId}&account_id=${status.account_id}&user_id=${status.user_id}&has_device=${status.has_active_device}`;
                 }
             } catch (e) {
                 console.warn("Status check failed, proceeding to login flow", e);
