@@ -51,7 +51,6 @@ app.add_middleware(
 )
 
 app.include_router(adapter_router, prefix="/v1")
-app.include_router(adapter_router) # Expose at root for Spotify Dashboard compatibility
 app.include_router(voice_router, prefix="/v1")
 app.include_router(chat_router, prefix="/v1")
 app.include_router(user_router, prefix="/v1")
