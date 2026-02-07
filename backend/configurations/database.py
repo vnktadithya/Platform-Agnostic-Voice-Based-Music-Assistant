@@ -13,12 +13,12 @@ if not DATABASE_URL:
     raise ValueError("DATABASE_URL environment variable is not set. Please assume Postgres is required.")
 
 # The engine is the entry point to our database.
-engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
 # Each instance of SessionLocal will be a database session.
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# This will be the base class our ORM models will inherit from.
+# Base class for ORM models.
 Base = declarative_base()
 
 # Dependency for FastAPI routes to get a DB session
