@@ -17,7 +17,8 @@ class RedisClient:
             try:
                 redis_url = os.getenv("REDIS_URL")
                 if redis_url:
-                    cls._client = redis.from_url(redis_url, decode_responses=True)
+                    # ssl_cert_reqs=None is often needed for Upstash/Render to avoid "Connection closed"
+                    cls._client = redis.from_url(redis_url, decode_responses=True, ssl_cert_reqs=None)
                 else:
                     cls._client = redis.Redis(
                         host=os.getenv("REDIS_HOST", "localhost"),
