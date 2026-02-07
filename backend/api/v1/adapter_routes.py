@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Query, HTTPException, Depends, Response, Cookie, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 import logging
 import os
 from typing import Optional
