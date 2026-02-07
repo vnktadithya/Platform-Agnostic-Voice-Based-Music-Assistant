@@ -11,6 +11,13 @@ redis_url = os.getenv('REDIS_URL')
 if not redis_url:
     redis_url = f"redis://{os.getenv('REDIS_HOST', 'localhost')}:{os.getenv('REDIS_PORT', 6379)}/1"
 
+# Fix for Upstash/Rediss: Ensure ssl_cert_reqs is set in the URL
+if redis_url.startswith("rediss://") and "ssl_cert_reqs" not in redis_url:
+    if "?" in redis_url:
+        redis_url += "&ssl_cert_reqs=CERT_NONE"
+    else:
+        redis_url += "?ssl_cert_reqs=CERT_NONE"
+
 celery_app = Celery(
     "tasks",
     broker=redis_url,
