@@ -12,8 +12,8 @@ from backend.models import database_models
 from backend.configurations.database import engine
 from backend.socket_manager import socket_app
 from backend.utils.custom_exceptions import AuthenticationError, DeviceNotFoundException, ExternalAPIError
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from fastapi import Request
 
 # Configure centralized logging
 logging.basicConfig(
