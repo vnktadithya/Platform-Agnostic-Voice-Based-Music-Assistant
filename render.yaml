@@ -5,7 +5,7 @@ services:
     region: oregon
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: chmod +x start.sh && ./start.sh
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: "3.10.12"
@@ -34,6 +34,34 @@ services:
       - key: SOUNDCLOUD_CLIENT_SECRET
         sync: false
       - key: SOUNDCLOUD_REDIRECT_URI
+        sync: false
+      - key: ENABLE_SOUNDCLOUD
+        value: "true"
+
+  - type: worker
+    name: SAM-Background-Worker
+    runtime: python
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A backend.celery_worker worker --loglevel=info --pool=gevent --beat
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.10.12"
+      - key: ENV
+        value: "production"
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: SPOTIFY_CLIENT_ID
+        sync: false
+      - key: SPOTIFY_CLIENT_SECRET
+        sync: false
+      - key: SOUNDCLOUD_CLIENT_ID
+        sync: false
+      - key: SOUNDCLOUD_CLIENT_SECRET
         sync: false
       - key: ENABLE_SOUNDCLOUD
         value: "true"
