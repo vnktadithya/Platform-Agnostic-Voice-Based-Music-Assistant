@@ -18,13 +18,15 @@ class RedisClient:
                 redis_url = os.getenv("REDIS_URL")
                 if redis_url:
                     # Fix for Upstash/Rediss: Ensure ssl_cert_reqs is set
-                    if redis_url.startswith("rediss://") and "ssl_cert_reqs" not in redis_url:
-                       if "?" in redis_url:
-                           redis_url += "&ssl_cert_reqs=CERT_NONE"
-                       else:
-                           redis_url += "?ssl_cert_reqs=CERT_NONE"
+                    connection_kwargs = {
+                        "decode_responses": True
+                    }
                     
-                    cls._client = redis.from_url(redis_url, decode_responses=True)
+                    if redis_url.startswith("rediss://"):
+                        import ssl
+                        connection_kwargs["ssl_cert_reqs"] = ssl.CERT_NONE
+
+                    cls._client = redis.from_url(redis_url, **connection_kwargs)
                 else:
                     cls._client = redis.Redis(
                         host=os.getenv("REDIS_HOST", "localhost"),

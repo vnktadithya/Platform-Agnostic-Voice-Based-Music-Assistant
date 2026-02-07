@@ -4,6 +4,7 @@ import os
 from backend.configurations.database import engine
 from backend.models import database_models
 import logging
+import ssl
 
 logger = logging.getLogger(__name__)
 # database_models.Base.metadata.create_all(bind=engine)
@@ -11,19 +12,24 @@ redis_url = os.getenv('REDIS_URL')
 if not redis_url:
     redis_url = f"redis://{os.getenv('REDIS_HOST', 'localhost')}:{os.getenv('REDIS_PORT', 6379)}/1"
 
-# Fix for Upstash/Rediss: Ensure ssl_cert_reqs is set in the URL
-if redis_url.startswith("rediss://") and "ssl_cert_reqs" not in redis_url:
-    if "?" in redis_url:
-        redis_url += "&ssl_cert_reqs=CERT_NONE"
-    else:
-        redis_url += "?ssl_cert_reqs=CERT_NONE"
-
 celery_app = Celery(
     "tasks",
     broker=redis_url,
     backend=redis_url,
     include=["backend.services.data_sync_service"] # Point to the file where tasks will be defined
 )
+
+if redis_url and redis_url.startswith("rediss://"):
+    ssl_conf = {
+        'ssl_cert_reqs': ssl.CERT_NONE,
+        'ssl_ca_certs': None,
+        'ssl_keyfile': None,
+        'ssl_certfile': None
+    }
+    celery_app.conf.update(
+        broker_use_ssl=ssl_conf,
+        redis_backend_use_ssl=ssl_conf
+    )
 
 logger.info("Celery worker initialized with Redis broker")
 
