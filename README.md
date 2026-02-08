@@ -120,21 +120,6 @@ Before setting up SAM, ensure you meet the requirements for the music platforms 
 
 ---
 
-## 🚀 Deployment
-
-The project is live at **[sam-self-adaptive-music-intelligence.vercel.app](https://sam-self-adaptive-music-intelligence.vercel.app)**.
-
-### Deployment Stack
-*   **Frontend**: Deployed on **Vercel** for global edge caching.
-*   **Backend**: Deployed on **Render** (Python Web Service).
-*   **Database**: Managed by **Supabase** (PostgreSQL).
-*   **Caching & Broker**: Managed by **Upstash** (Serverless Redis).
-
-> [!IMPORTANT]
-> **Access & Testing Policy**
-> *   **SoundCloud**: ✅ **Open to All**. You can log in with any active SoundCloud account to test the full functionality.
-> *   **Spotify**: ⚠️ **Restricted**. Due to Spotify's "Development Mode" restrictions, you cannot log in unless your email is manually added to my Developer Dashboard. Additionally, a **Spotify Premium** account is required for playback control through API services.
-
 ## 🛠️ Getting Started
 
 Follow these steps to set up a local instance of SAM.
@@ -217,7 +202,7 @@ SOUNDCLOUD_REDIRECT_URI="http://localhost:8000/v1/adapter/soundcloud/callback"
 
 You will need **5 separate terminal instances** to run the full stack.
 
-### Terminal 1: Redis (Message Broker)
+#### Terminal 1: Redis (Message Broker)
 Required for Celery task queue and background job coordination.
 ```bash
 # Windows (run Redis inside WSL) / Linux
@@ -273,6 +258,24 @@ Once inside the application, click on mic button to activate the "Listening" sta
 *   *"Add this song to my Gym playlist"*
 
 ---
+
+## 🚀 Deployment
+
+The project is live at **[sam-self-adaptive-music-intelligence.vercel.app](https://sam-self-adaptive-music-intelligence.vercel.app)**.
+
+### Deployment Stack
+*   **Frontend**: Deployed on **Vercel** for global edge caching.
+*   **Backend**: Deployed on **Render** (Python Web Service).
+*   **Database**: Managed by **Supabase** (PostgreSQL).
+*   **Caching & Broker**: Managed by **Upstash** (Serverless Redis).
+
+> [!IMPORTANT]
+> **Access & Testing Policy**
+> *   **SoundCloud**: ✅ **Open to All**. You can log in with any active SoundCloud account to test the full functionality.
+> *   **Spotify**: ⚠️ **Restricted**. Due to Spotify's "Development Mode" restrictions, you cannot log in unless your email is manually added to my Developer Dashboard. Additionally, a **Spotify Premium** account is required for playback control through API services.
+
+> [!NOTE]
+> **Cold Start Delay**: This project is deployed on Render's free tier, which spins down after 15 minutes of inactivity. If the demo feels unresponsive initially, please allow **1-2 minutes** for the backend to wake up.
 
 ## 🤝 Contributing
 
