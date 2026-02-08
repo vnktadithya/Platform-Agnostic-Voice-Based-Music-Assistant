@@ -33,11 +33,10 @@ export const CapabilitiesButton = ({ activePlatform, theme }: CapabilitiesButton
             whileTap={{ scale: 0.98, y: 1 }}
             aria-label={`View ${PLATFORMS.find(p => p.id === activePlatform)?.name || activePlatform} Capabilities`}
             onClick={() => setLocation('/features#platform-intelligence')}
-            className={styles.capabilitiesButton}
+            className={`${styles.capabilitiesButton} ${styles.capabilitiesButtonWithBorder}`}
             style={{
                 /* Border Lighting (Top highlight, Bottom shadow) */
                 borderTop: `1px solid ${theme?.color}40`,
-                borderBottom: `1px solid rgba(0,0,0,0.8)`,
             }}
         >
             <span>View {PLATFORMS.find(p => p.id === activePlatform)?.name || activePlatform} Capabilities</span>

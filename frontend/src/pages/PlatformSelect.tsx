@@ -5,10 +5,12 @@ import { useLocation } from 'wouter';
 import { SamPlatformBehavior } from '../components/canvas/SamPlatformBehavior';
 import { PlatformOrbit, PLATFORMS } from '../components/canvas/PlatformOrbit';
 import { HeroParticles } from '../components/canvas/HeroParticles';
+import { AccessDeniedWidget } from '../components/AccessDeniedWidget';
+import styles from './PlatformSelect.module.css';
 
 // Fallback for loading 3D assets
 const Loader = () => (
-    <div style={{ color: 'white', position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
+    <div className={styles.loader}>
         LOADING...
     </div>
 );
@@ -19,11 +21,16 @@ const PlatformSelect = () => {
     const [hoveredColor, setHoveredColor] = useState<string | null>(null);
     const [hoveredPos, setHoveredPos] = useState<[number, number, number] | null>(null);
     const [sessionExpired, setSessionExpired] = useState(false);
+    const [accessDenied, setAccessDenied] = useState(false);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         if (params.get('expired')) {
             setSessionExpired(true);
+            window.history.replaceState({}, '', '/platform-select');
+        }
+        if (params.get('error') === 'access_denied') {
+            setAccessDenied(true);
             window.history.replaceState({}, '', '/platform-select');
         }
     }, []);
@@ -119,17 +126,9 @@ const PlatformSelect = () => {
     }, [connecting]);
 
     return (
-        <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            background: 'black',
-            overflow: 'hidden'
-        }}>
+        <div className={styles.container}>
             {/* 3D SCENE */}
-            <div style={{ position: 'absolute', width: '100%', height: '100%', zIndex: 1 }}>
+            <div className={styles.sceneContainer}>
                 <Canvas camera={{ position: [0, 0, 8], fov: 45 }}>
                     <Suspense fallback={null}>
                         {/* Background */}
@@ -161,53 +160,15 @@ const PlatformSelect = () => {
             </div>
 
             {/* UI OVERLAY */}
-            <div style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                zIndex: 10,
-                pointerEvents: 'none', // Allow clicks to pass through to Canvas for 3D interactions
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                paddingTop: '10px'
-            }}>
+            <div className={styles.uiOverlay}>
                 {/* Back to Home Button (Top Left) */}
                 <motion.button
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.5 }}
                     onClick={() => setLocation('/')}
-                    style={{
-                        position: 'fixed',
-                        top: '2rem',
-                        left: '2rem',
-                        padding: '0.75rem 1.5rem',
-                        fontSize: '0.9rem',
-                        fontWeight: 500,
-                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                        backdropFilter: 'blur(10px)',
-                        color: 'white',
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
-                        borderRadius: '9999px',
-                        cursor: 'pointer',
-                        zIndex: 50,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        pointerEvents: 'auto',
-                        transition: 'all 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-                        e.currentTarget.style.transform = 'translateY(0)';
-                    }}
+                    className={styles.backButton}
+                // Hover styles moved to CSS :hover
                 >
                     Back to Home
                 </motion.button>
@@ -216,48 +177,21 @@ const PlatformSelect = () => {
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 1 }}
-                    style={{ textAlign: 'center' }}
+                    className={styles.headerContainer}
                 >
-                    <h1 style={{
-                        fontSize: '3.5rem',
-                        fontWeight: 700,
-                        background: 'linear-gradient(to right, #4facfe 0%, #00f2fe 100%)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        marginBottom: '1rem',
-                        textShadow: '0 10px 30px rgba(0, 242, 254, 0.3)'
-                    }}>
+                    <h1 className={styles.title}>
                         One Intelligence. Every Music World.
                     </h1>
-                    <p style={{
-                        fontSize: '1.1rem',
-                        color: 'rgba(255, 255, 255, 0.7)',
-                        maxWidth: '800px',
-                        margin: '0 auto',
-                        lineHeight: '1.6'
-                    }}>
+                    <p className={styles.subtitle}>
                         SAM connects seamlessly to your favorite platform — your music stays unified, wherever it lives.
                     </p>
                 </motion.div>
 
                 {/* Connecting HUD - Fixed Bottom Right */}
                 {connecting && (
-                    <div style={{
-                        position: 'absolute',
-                        bottom: '40px',
-                        right: '40px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'flex-end',
-                        gap: '4px',
-                        color: '#00f2fe',
-                        fontFamily: "'Courier New', monospace",
-                        textShadow: '0 0 10px #00f2fe',
-                        fontWeight: 'bold',
-                        pointerEvents: 'none'
-                    }}>
-                        <div style={{ fontSize: '1.2rem' }}>{`Binding intelligence to`}</div>
-                        <div style={{ fontSize: '1.4rem' }}>{`${connecting}...`}</div>
+                    <div className={styles.connectingHud}>
+                        <div className={styles.hudLabel}>{`Binding intelligence to`}</div>
+                        <div className={styles.hudValue}>{`${connecting}...`}</div>
                     </div>
                 )}
 
@@ -269,42 +203,14 @@ const PlatformSelect = () => {
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -20 }}
                             transition={{ duration: 0.4, type: "spring" }}
-                            style={{
-                                position: 'absolute',
-                                top: '50%',
-                                left: '4%',
-                                transform: 'translateY(-50%)',
-                                background: 'rgba(255, 59, 48, 0.08)', // Much subtler
-                                border: '1px solid rgba(255, 59, 48, 0.15)',
-                                backdropFilter: 'blur(8px)',
-                                padding: '1rem 1.5rem', // Reduced padding
-                                borderRadius: '12px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.8rem',
-                                pointerEvents: 'none' // Don't block clicks
-                            }}
+                            className={styles.sessionExpiredToast}
                         >
-                            <div style={{
-                                width: '3px',
-                                height: '32px',
-                                background: 'rgba(255, 59, 48, 0.8)',
-                                borderRadius: '2px',
-                                boxShadow: '0 0 10px rgba(255, 59, 48, 0.4)'
-                            }} />
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span style={{
-                                    color: 'rgba(255, 59, 48, 0.9)',
-                                    fontWeight: '600',
-                                    fontSize: '0.95rem',
-                                    letterSpacing: '0.5px'
-                                }}>
+                            <div className={styles.sessionExpiredBar} />
+                            <div className={styles.sessionExpiredContent}>
+                                <span className={styles.sessionExpiredTitle}>
                                     SESSION EXPIRED
                                 </span>
-                                <span style={{
-                                    color: 'rgba(255, 255, 255, 0.6)',
-                                    fontSize: '0.8rem'
-                                }}>
+                                <span className={styles.sessionExpiredMessage}>
                                     Please Re-Login.
                                 </span>
                             </div>
@@ -312,6 +218,9 @@ const PlatformSelect = () => {
                     )}
                 </AnimatePresence>
             </div>
+
+            {/* Access Denied Widget */}
+            <AccessDeniedWidget isOpen={accessDenied} onClose={() => setAccessDenied(false)} />
 
             {/* Loading Overlay */}
             <Suspense fallback={<Loader />}>

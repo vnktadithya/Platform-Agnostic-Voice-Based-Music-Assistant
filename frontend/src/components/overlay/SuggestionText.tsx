@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import styles from './Overlay.module.css';
 
 export const SuggestionText = () => {
     const suggestions = [
@@ -20,7 +21,7 @@ export const SuggestionText = () => {
     }, []);
 
     return (
-        <div style={{ position: 'relative', height: '24px', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className={styles.suggestionContainer}>
             <AnimatePresence mode="wait">
                 <motion.div
                     key={index}
@@ -28,15 +29,7 @@ export const SuggestionText = () => {
                     animate={{ opacity: 0.5, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.5 }}
-                    style={{
-                        position: 'absolute',
-                        color: 'white',
-                        fontSize: '0.9rem',
-                        fontWeight: 300,
-                        letterSpacing: '0.5px',
-                        textAlign: 'center',
-                        width: 'max-content'
-                    }}
+                    className={styles.suggestionText}
                 >
                     {suggestions[index]}
                 </motion.div>

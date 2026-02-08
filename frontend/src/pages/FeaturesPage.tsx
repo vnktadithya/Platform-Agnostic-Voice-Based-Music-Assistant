@@ -2,6 +2,7 @@ import { useLocation } from 'wouter';
 import { useEffect } from 'react';
 import Features from '../components/Features';
 import { motion } from 'framer-motion';
+import styles from './FeaturesPage.module.css';
 
 export const FeaturesPage = () => {
     const [, setLocation] = useLocation();
@@ -21,7 +22,7 @@ export const FeaturesPage = () => {
     }, []);
 
     return (
-        <main style={{ backgroundColor: '#050505', minHeight: '100vh', position: 'relative' }}>
+        <main className={styles.container}>
             <Features />
 
             {/* Floating Back Button */}
@@ -30,33 +31,8 @@ export const FeaturesPage = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 }}
                 onClick={() => setLocation('/')}
-                style={{
-                    position: 'fixed',
-                    top: '2rem',
-                    left: '2rem',
-                    padding: '0.75rem 1.5rem',
-                    fontSize: '0.9rem',
-                    fontWeight: 500,
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    backdropFilter: 'blur(10px)',
-                    color: 'white',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    borderRadius: '9999px',
-                    cursor: 'pointer',
-                    zIndex: 50,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                }}
-                onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                }}
+                className={styles.backButton}
+
             >
                 Back to Home
             </motion.button>

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import styles from './Toast.module.css';
 
 // --- Types ---
 type ToastType = 'success' | 'error' | 'info';
@@ -48,16 +49,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             {children}
 
             {/* Toast Container */}
-            <div style={{
-                position: 'fixed',
-                top: '20px',
-                right: '20px',
-                zIndex: 9999,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '10px',
-                pointerEvents: 'none' // Allow clicks through container
-            }}>
+            <div className={styles.toastContainer}>
                 <AnimatePresence>
                     {toasts.map((toast) => (
                         <ToastItem key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />
@@ -70,36 +62,13 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
 // --- Individual Toast Item ---
 const ToastItem: React.FC<{ toast: Toast; onClose: () => void }> = ({ toast, onClose }) => {
-    const colors = {
-        success: '#22c55e',
-        error: '#ef4444',
-        info: '#3b82f6'
-    };
-
     return (
         <motion.div
             layout
             initial={{ opacity: 0, x: 50, scale: 0.9 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 20, scale: 0.9 }}
-            style={{
-                background: 'rgba(20, 20, 25, 0.95)',
-                backdropFilter: 'blur(10px)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderLeft: `4px solid ${colors[toast.type]}`,
-                color: 'white',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                minWidth: '250px',
-                maxWidth: '400px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '0.9rem',
-                pointerEvents: 'auto', // Re-enable clicks
-                cursor: 'pointer'
-            }}
+            className={`${styles.toastItem} ${styles[toast.type]}`}
             onClick={onClose}
         >
             <span>{toast.message}</span>

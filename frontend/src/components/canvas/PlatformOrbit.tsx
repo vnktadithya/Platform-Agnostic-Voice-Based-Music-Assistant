@@ -4,6 +4,7 @@ import { Decal, useTexture, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { getAuthUrl, getPlatformStatus, API_URL } from '../../services/api';
 
+import styles from './Canvas.module.css';
 import { NeonStream } from './NeonStream';
 
 // Map logos to the ones we have in public/logos/
@@ -251,6 +252,11 @@ const PlatformNode = ({ platform, onSelect, onHover, onHoverPos }: { platform: a
         meshRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
     });
 
+
+
+    // ... (PlatformOrbit.tsx implementation - ensure only Html styles are touched)
+    // NOTE: I am replacing the `PlatformNode` component's `Html` block style.
+
     return (
         <group position={new THREE.Vector3(...platform.position)}>
 
@@ -304,30 +310,19 @@ const PlatformNode = ({ platform, onSelect, onHover, onHoverPos }: { platform: a
 
             {/* Label on Hover */}
             {hovered && (
-                <Html position={[0, -1, 0]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <div style={{
-                            background: 'rgba(0,0,0,0.8)',
-                            padding: '4px 12px',
-                            borderRadius: '12px',
-                            border: `1px solid ${platform.color}`,
-                            color: 'white',
-                            fontSize: '0.8rem',
-                            whiteSpace: 'nowrap',
-                            fontWeight: 'bold',
-                            backdropFilter: 'blur(4px)',
-                            boxShadow: `0 0 10px ${platform.color}, 0 0 1px ${platform.color}`
-                        }}>
+                <Html position={[0, -1, 0]} center distanceFactor={10} className={styles.htmlWrapper}>
+                    <div className={styles.tooltipContainer}>
+                        <div
+                            className={styles.tooltip}
+                            style={{
+                                border: `1px solid ${platform.color}`,
+                                boxShadow: `0 0 10px ${platform.color}, 0 0 1px ${platform.color}`
+                            }}
+                        >
                             {platform.name}
                         </div>
                         {platform.id !== 'spotify' && platform.id !== 'soundcloud' && (
-                            <div style={{
-                                color: 'rgba(255, 255, 255, 0.6)',
-                                fontSize: '0.6rem',
-                                marginTop: '4px',
-                                textShadow: '0 1px 2px rgba(0,0,0,0.8)',
-                                whiteSpace: 'nowrap'
-                            }}>
+                            <div className={styles.comingSoon}>
                                 Coming Soon
                             </div>
                         )}

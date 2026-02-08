@@ -13,7 +13,7 @@ export const PlatformButton = () => {
             aria-label="Change Platform"
             onClick={() => setLocation('/platform-select')}
             className={styles.platformButton}
-            style={{}} // Reset inline styles managed by CSS
+
         // Mouse events handled by CSS :hover
         >
             Change Platform

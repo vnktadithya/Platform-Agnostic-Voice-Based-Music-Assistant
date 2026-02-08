@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import styles from './ImageSequence.module.css';
 
 // Global cache to prevent reloading images on navigation
 const globalImageCache: HTMLImageElement[] = [];
@@ -200,29 +201,13 @@ export const ImageSequence = ({ onCycleComplete, instantStart = false }: ImageSe
     }, []);
 
     return (
-        <div style={{
-            position: 'absolute',
-            inset: 0,
-            backgroundColor: '#050505',
-            zIndex: 0,
-            overflow: 'hidden'
-        }}>
+        <div className={styles.container}>
             <canvas
                 ref={canvasRef}
-                style={{
-                    display: 'block',
-                    width: '100%',
-                    height: '100%'
-                }}
+                className={styles.canvas}
             />
             {/* VIGNETTE OVERLAY */}
-            <div style={{
-                position: 'absolute',
-                inset: 0,
-                background: 'radial-gradient(circle at center, transparent 40%, #050505 75%, #050505 100%)',
-                zIndex: 1,
-                pointerEvents: 'none'
-            }} />
+            <div className={styles.vignette} />
         </div>
     );
 };

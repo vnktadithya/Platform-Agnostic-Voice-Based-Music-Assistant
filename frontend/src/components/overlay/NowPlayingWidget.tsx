@@ -39,23 +39,23 @@ export const NowPlayingWidget = ({ data }: NowPlayingWidgetProps) => {
             className={styles.nowPlayingWidget}
         >
             {/* Album Art / Icon */}
-            <div style={{ position: 'relative' }}>
+            <div className={styles.albumArtContainer}>
                 <div className={styles.albumArt}>
                     {data.image ? (
                         <img
                             src={data.image}
                             alt="Art"
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            className={styles.albumArtImage}
                         />
                     ) : (
                         <>
                             {data.type === 'song' ? (
                                 <div className={styles.albumArtFallback} />
                             ) : (
-                                <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #ec4899, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <div className={styles.playlistFallback}>
                                     <svg className={styles.playlistIcon} viewBox="0 0 24 24" fill="white" stroke="none">
                                         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm1-5c-.77 0-1.47.3-2.03.79l-1.35-1.54C9.5 9.4 10.66 9 12 9c2.21 0 4 1.79 4 4 0 .88-.36 1.68-.93 2.25L13.83 17h-1.66l1.24-1.24c.3-.29.59-.62.59-1.01 0-1.1-.9-2-2-2z" />
-                                        <path d="M9 16h6v-6h4V8h-4V6h-2v10z" style={{ fill: 'white' }} />
+                                        <path d="M9 16h6v-6h4V8h-4V6h-2v10z" fill="white" />
                                     </svg>
                                 </div>
                             )}

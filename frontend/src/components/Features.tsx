@@ -1,8 +1,10 @@
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, Link2, Zap, MessageSquare, Smartphone, Layers } from 'lucide-react';
 import React, { Suspense } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { HeroParticles } from './canvas/HeroParticles';
+import styles from './Features.module.css';
+
+// Lazy load the heavy 3D background component
+const FeaturesBackground = React.lazy(() => import('./FeaturesBackground'));
 
 const features = [
     {
@@ -45,58 +47,38 @@ const features = [
 
 const Features = () => {
     return (
-        <section id="features" style={{
-            padding: '6rem 1.5rem',
-            position: 'relative',
-            overflow: 'hidden',
-            color: 'white',
-            minHeight: '100vh',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'flex-start'
-        }}>
+        <section id="features" className={styles.featuresSection}>
             {/* 3D Background - HeroParticles */}
-            <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-                <Canvas camera={{ position: [0, 0, 10], fov: 45 }}>
-                    <Suspense fallback={null}>
-                        <color attach="background" args={['#050505']} />
-                        <HeroParticles />
-                    </Suspense>
-                </Canvas>
-            </div>
+            {/* 3D Background - Lazy Loaded with Fade-In */}
+            <Suspense fallback={null}>
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 1.5, ease: "easeOut" }} // Smooth cinematic fade-in
+                    className={styles.backgroundContainer}
+                >
+                    <FeaturesBackground />
+                </motion.div>
+            </Suspense>
 
             {/* Content Container */}
-            <div style={{
-                position: 'relative', zIndex: 10,
-                maxWidth: '1280px', margin: '0 auto', width: '100%'
-            }}>
+            <div className={styles.contentContainer}>
                 <motion.div
                     initial={{ opacity: 0, y: 30 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.6 }}
-                    style={{ textAlign: 'center', marginBottom: '5rem' }}
+                    className={styles.headerWrapper}
                 >
-                    <h2 className="text-gradient" style={{
-                        fontSize: '3.5rem', fontWeight: 700, marginBottom: '1.5rem',
-                        lineHeight: 1.1,
-                        textShadow: '0 0 20px rgba(255,255,255,0.1)'
-                    }}>
+                    <h2 className={`text-gradient ${styles.title}`}>
                         Powerful Features
                     </h2>
-                    <p style={{
-                        fontSize: '1.25rem', color: '#9ca3af', maxWidth: '42rem', margin: '0 auto',
-                        lineHeight: 1.6
-                    }}>
+                    <p className={styles.description}>
                         Effortlessly command, curate, and synchronize your entire music universe using just your voice.
                     </p>
                 </motion.div>
 
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-                    gap: '2.5rem',
-                }}>
+                <div className={styles.grid}>
                     {features.map((feature, index) => (
                         <FeatureCard key={index} feature={feature} index={index} />
                     ))}
@@ -109,23 +91,13 @@ const Features = () => {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.6, delay: 0.2 }}
-                    style={{ marginTop: '8rem', scrollMarginTop: '100px' }}
+                    className={styles.platformSection}
                 >
-                    <h2 className="text-gradient" style={{
-                        fontSize: '3.5rem', fontWeight: 700, marginBottom: '2rem',
-                        textAlign: 'center', lineHeight: 1.3, paddingBottom: '0.5rem',
-                        textShadow: '0 0 20px rgba(255,255,255,0.1)'
-                    }}>
+                    <h2 className={`text-gradient ${styles.platformTitle}`}>
                         Platform Intelligence
                     </h2>
 
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
-                        gap: '2.5rem',
-                        maxWidth: '1000px',
-                        margin: '0 auto'
-                    }}>
+                    <div className={styles.platformGrid}>
                         {/* Spotify Card */}
                         <CapabilityCard
                             platform="Spotify"
@@ -181,119 +153,96 @@ const FeatureCard = ({ feature, index: _index }: { feature: any, index: number }
                 y: hovered ? -10 : 0,
                 scale: hovered ? 1.05 : 1,
             }}
+            className={styles.featureCard}
             style={{
-                /* Glassmorphism */
-                background: 'rgba(255, 255, 255, 0.02)',
-                backdropFilter: 'blur(20px)',
-                WebkitBackdropFilter: 'blur(20px)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '1.5rem',
-                padding: '1.5rem',
-                height: '320px',
-                display: 'flex',
-                flexDirection: 'column',
-                position: 'relative',
-
-                /* Dynamic Shadow / Glow */
+                /* Dynamic Shadow / Glow - kept inline as it depends on props */
                 boxShadow: hovered
                     ? `0 20px 50px ${feature.color1}30, 0 0 0 1px ${feature.color1}40`
                     : '0 10px 30px rgba(0,0,0,0.2)',
-
-                cursor: 'default',
             }}
         >
             {/* Icon Container with Gradient Glow */}
-            <div style={{
-                width: '3rem', height: '3rem',
-                borderRadius: '1rem',
-                background: `linear-gradient(135deg, ${feature.color1}, ${feature.color2})`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                marginBottom: '1.5rem',
-                boxShadow: `0 8px 20px ${feature.color1}50`,
-                flexShrink: 0
-            }}>
+            <div
+                className={styles.iconContainer}
+                style={{
+                    background: `linear-gradient(135deg, ${feature.color1}, ${feature.color2})`,
+                    boxShadow: `0 8px 20px ${feature.color1}50`,
+                }}
+            >
                 <feature.icon size={28} color="white" strokeWidth={2.5} />
             </div>
 
-            <h3 style={{
-                fontSize: '1.5rem',
-                fontWeight: 700,
-                marginBottom: '1rem',
-                color: 'white',
-                textShadow: hovered ? `0 0 20px ${feature.color1}80` : 'none',
-                transition: 'text-shadow 0.3s ease'
-            }}>
+            <h3
+                className={styles.cardTitle}
+                style={{
+                    textShadow: hovered ? `0 0 20px ${feature.color1}80` : 'none',
+                }}
+            >
                 {feature.title}
             </h3>
 
-            <p style={{ color: 'rgba(255,255,255,0.7)', lineHeight: 1.7, fontSize: '1.05rem' }}>
+            <p className={styles.cardDescription}>
                 {feature.description}
             </p>
 
             {/* Bottom Glow Effect */}
-            <div style={{
-                position: 'absolute',
-                bottom: '0',
-                left: '20%',
-                right: '20%',
-                height: '1px',
-                background: `linear-gradient(90deg, transparent, ${feature.color1}, transparent)`,
-                boxShadow: `0 -10px 30px ${feature.color1}`,
-                opacity: hovered ? 0.8 : 0,
-                transition: 'opacity 0.5s ease',
-            }} />
+            <div
+                className={styles.bottomGlow}
+                style={{
+                    background: `linear-gradient(90deg, transparent, ${feature.color1}, transparent)`,
+                    boxShadow: `0 -10px 30px ${feature.color1}`,
+                    opacity: hovered ? 0.8 : 0,
+                }}
+            />
         </motion.div>
     );
 };
 
 const CapabilityCard = ({ platform, color, capabilities }: { platform: string, color: string, capabilities: string[] }) => {
     return (
-        <div style={{
-            background: 'rgba(255, 255, 255, 0.03)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            border: `1px solid ${color}20`,
-            borderRadius: '1.5rem',
-            padding: '2.5rem',
-            position: 'relative',
-            overflow: 'hidden'
-        }}>
+        <div
+            className={styles.capabilityCard}
+            style={{
+                border: `1px solid ${color}20`,
+            }}
+        >
             {/* Header / Logo Area */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-                <div style={{
-                    width: '12px', height: '12px', borderRadius: '50%',
-                    background: color,
-                    boxShadow: `0 0 15px ${color}`
-                }} />
-                <h3 style={{ fontSize: '1.8rem', fontWeight: 700, color: 'white' }}>{platform}</h3>
+            <div className={styles.cardHeader}>
+                <div
+                    className={styles.platformDot}
+                    style={{
+                        background: color,
+                        boxShadow: `0 0 15px ${color}`
+                    }}
+                />
+                <h3 className={styles.platformName}>{platform}</h3>
             </div>
 
             {/* List */}
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <ul className={styles.capabilityList}>
                 {capabilities.map((cap, i) => (
-                    <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'rgba(255,255,255,0.9)' }}>
+                    <li key={i} className={styles.capabilityItem}>
                         {/* Check Icon */}
-                        <div style={{
-                            minWidth: '20px', height: '20px', borderRadius: '50%',
-                            background: `${color}15`,
-                            border: `1px solid ${color}40`,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: color, fontSize: '0.7rem'
-                        }}>✓</div>
-                        <span style={{ fontSize: '0.95rem' }}>{cap}</span>
+                        <div
+                            className={styles.checkIcon}
+                            style={{
+                                background: `${color}15`,
+                                border: `1px solid ${color}40`,
+                                color: color
+                            }}
+                        >✓</div>
+                        <span className={styles.capabilityText}>{cap}</span>
                     </li>
                 ))}
             </ul>
 
             {/* Bottom Glow */}
-            <div style={{
-                position: 'absolute', bottom: '-20px', right: '-20px',
-                width: '150px', height: '150px',
-                background: color,
-                filter: 'blur(80px)',
-                opacity: 0.15,
-                borderRadius: '50%'
-            }} />
+            <div
+                className={styles.cardGlow}
+                style={{
+                    background: color,
+                }}
+            />
         </div>
     );
 };

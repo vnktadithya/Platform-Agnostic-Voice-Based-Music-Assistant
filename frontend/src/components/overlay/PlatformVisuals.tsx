@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
 import { SpotifyModel } from '../canvas/SpotifyModel';
 import { SoundCloudModel } from '../canvas/SoundCloudModel';
+import styles from './Overlay.module.css';
 
 interface PlatformVisualsProps {
     activePlatform: string;
@@ -17,15 +18,7 @@ export const PlatformVisuals: React.FC<PlatformVisualsProps> = ({ activePlatform
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 20 }}
                         transition={{ duration: 0.8 }}
-                        style={{
-                            position: 'absolute',
-                            bottom: '0px',
-                            left: '30px',
-                            width: '140px',
-                            height: '300px',
-                            zIndex: 15,
-                            pointerEvents: 'auto'
-                        }}
+                        className={styles.platformVisualsContainer}
                     >
                         <Canvas camera={{ position: [0, 0, 6], fov: 45 }} gl={{ alpha: true }}>
                             <ambientLight intensity={1.5} />
@@ -45,15 +38,7 @@ export const PlatformVisuals: React.FC<PlatformVisualsProps> = ({ activePlatform
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 20 }}
                         transition={{ duration: 0.8 }}
-                        style={{
-                            position: 'absolute',
-                            bottom: '0px',
-                            left: '30px',
-                            width: '150px',
-                            height: '300px',
-                            zIndex: 15,
-                            pointerEvents: 'auto'
-                        }}
+                        className={`${styles.platformVisualsContainer} ${styles.platformVisualsContainerLarge}`}
                     >
                         <Canvas camera={{ position: [0, 0, 6], fov: 45 }} gl={{ alpha: true }}>
                             <ambientLight intensity={1.5} />

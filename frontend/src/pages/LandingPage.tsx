@@ -4,6 +4,7 @@ import { useStore } from '../store/useStore';
 
 
 import { useState } from 'react';
+import styles from './LandingPage.module.css';
 
 // Module-level variable to track animation state across navigations,
 // but reset on full page reload.
@@ -17,14 +18,9 @@ export const LandingPage = () => {
     };
 
     return (
-        <main style={{
-            backgroundColor: '#050505',
-            color: 'white',
-            minHeight: '100vh',
-            fontFamily: '"SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif'
-        }}>
+        <main className={styles.main}>
             {/* SECTION 1: HERO (Cinematic Loop) */}
-            <section style={{ position: 'relative', height: '100vh', width: '100%', overflow: 'hidden' }}>
+            <section className={styles.heroSection}>
                 <ImageSequence onCycleComplete={handleCycleComplete} instantStart={introSeen} />
                 <LandingOverlay showButton={showButton} />
             </section>
