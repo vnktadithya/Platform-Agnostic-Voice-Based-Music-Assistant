@@ -40,6 +40,8 @@ Update `backend/services/data_sync_service.py` to handle token refreshes and lib
     *   *Logic*: Check DB expiration -> Return if valid -> Else refresh -> Update DB -> Return.
 3.  **Library Sync**: Implement `sync_<newplatform>_library(platform_account_id)`.
     *   Fetch playlists/liked songs and store them using `sync_user_library` (shared utility).
+4.  **Periodic Background Sync**: Implement `refresh_all_<newplatform>_libraries()`.
+    *   This ensures all users stay in sync without manual intervention.
 
 ### 3. Register Routes & Auth
 Update `backend/api/v1/adapter_routes.py`:
