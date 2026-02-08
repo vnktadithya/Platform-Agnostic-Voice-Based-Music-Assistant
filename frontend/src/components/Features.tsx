@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Mic, Link2, Zap, MessageSquare, Smartphone, Layers } from 'lucide-react';
 import React, { Suspense } from 'react';
 import styles from './Features.module.css';
