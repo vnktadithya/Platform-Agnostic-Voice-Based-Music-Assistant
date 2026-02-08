@@ -7,8 +7,9 @@ from typing import List, Tuple, Optional
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from backend.adapters.adapter_base import MusicPlatformAdapter
-from backend.models.database_models import UserPlaylist, UserLikedSong
+from backend.models.database_models import UserPlaylist, UserLikedSong, SearchCache
 from backend.utils.normalize_text import normalize_query
+from backend.utils.fuzzy_utils import fuzzy_search_cache
 import logging
 import json
 
@@ -43,6 +44,21 @@ class SoundCloudAdapter(MusicPlatformAdapter):
             "Authorization": f"Bearer {self.access_token}",
             "Accept": "application/json"
         }
+
+    def validate_token(self) -> bool:
+        """
+        Validates the current access token by making a lightweight request to /me.
+        Returns True if valid, False if 401/403.
+        """
+        try:
+            resp = requests.get(f"{self.BASE_API_URL}/me", headers=self._headers())
+            if resp.status_code in [401, 403]:
+                return False
+            resp.raise_for_status()
+            return True
+        except Exception as e:
+            logger.warning(f"SoundCloud token validation failed: {e}")
+            return False
     
     @staticmethod
     def _generate_pkce_pair() -> Tuple[str, str]:
@@ -193,7 +209,7 @@ class SoundCloudAdapter(MusicPlatformAdapter):
         elif isinstance(data, dict) and "collection" in data:
              collection = data["collection"]
         else:
-             print(f"DEBUG: Unexpected SoundCloud playlist response: {type(data)} - {data}")
+             logger.warning(f"DEBUG: Unexpected SoundCloud playlist response: {type(data)} - {data}")
              return []
 
         for pl in collection:
@@ -250,46 +266,122 @@ class SoundCloudAdapter(MusicPlatformAdapter):
 
     # ---------------- Search ----------------
 
-    def search_track_uris(self, db: Session, platform_account_id: int, query: str, limit: int = 1) -> List[str]:
-        resp = requests.get(
-            f"{self.BASE_API_URL}/tracks",
-            headers=self._headers(),
-            params={"q": query, "limit": limit}
-        )
-        resp.raise_for_status()
+    def _resolve_track(
+        self,
+        db: Session,
+        platform_account_id: int,
+        query: str,
+        limit: int = 1,
+        use_cache: bool = True,
+    ):
+        """
+        Internal helper: Resolves tracks and returns (uris, track_info_dict).
+        Implements caching via SearchCache using fuzzy matching.
+        """
+        norm_query = normalize_query(query)
+        track_info = None
 
-        return [f"soundcloud:track:{t['id']}" for t in resp.json()]
+        # 1. Cache Lookup
+        if use_cache:
+            cache_records = db.query(SearchCache).filter(
+                SearchCache.platform_account_id == platform_account_id
+            ).all()
+
+            match, score = fuzzy_search_cache(norm_query, cache_records, threshold=75)
+            if match:
+                meta = match.meta_data or {}
+                logger.info("SoundCloud Fuzzy SearchCache hit: '%s' (score: %s)", query, score)
+                
+                track_info = {
+                    "title": meta.get("track_name"),
+                    "subtitle": meta.get("artist"),
+                    "type": "song",
+                    "image": meta.get("image"),
+                    "permalink_url": meta.get("permalink_url"),
+                    "uri": match.track_uri
+                }
+                return [match.track_uri], track_info
+
+        # 2. API Search Fallback
+        logger.info("No SearchCache match for '%s'. Querying SoundCloud API.", query)
+        try:
+            resp = requests.get(
+                f"{self.BASE_API_URL}/tracks",
+                headers=self._headers(),
+                params={"q": query, "limit": limit}
+            )
+            resp.raise_for_status()
+            results = resp.json()
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 401:
+                raise # Re-raise 401 to be caught by MusicActionService/DialogManager
+            logger.error(f"SoundCloud API search failed: {e}")
+            return [], None
+        except Exception as e:
+            logger.error(f"SoundCloud API search failed: {e}")
+            return [], None
+
+        if not results:
+            return [], None
+
+        track = results[0]
+        sc_uri = f"soundcloud:track:{track['id']}"
+        
+        user = track.get("user", {})
+        artwork = track.get("artwork_url") or user.get("avatar_url")
+        
+        track_info = {
+            "title": track.get("title"),
+            "subtitle": user.get("username"),
+            "type": "song",
+            "image": artwork,
+            "permalink_url": track.get("permalink_url"),
+            "uri": sc_uri # Return internal URI format
+        }
+
+        # 3. Cache Store
+        try:
+            db.add(
+                SearchCache(
+                    platform_account_id=platform_account_id,
+                    normalized_query=norm_query,
+                    track_uri=sc_uri,
+                    meta_data={
+                        "track_name": track.get("title", ""),
+                        "artist": user.get("username", ""),
+                        "duration_ms": track.get("duration", 0),
+                        "image": artwork,
+                        "permalink_url": track.get("permalink_url")
+                    },
+                )
+            )
+            db.commit()
+            logger.info("Cached SoundCloud search result '%s' in SearchCache.", norm_query)
+        except Exception as e:
+            logger.error(f"Failed to cache SoundCloud search result: {e}")
+            db.rollback()
+
+        uris = [f"soundcloud:track:{t['id']}" for t in results]
+        return uris, track_info
+
+    def search_track_uris(self, db: Session, platform_account_id: int, query: str, limit: int = 1, use_cache: bool = True) -> List[str]:
+        uris, _ = self._resolve_track(db, platform_account_id, query, limit, use_cache=use_cache)
+        return uris
 
     def play_by_query(self, db: Session, platform_account_id: int, query: str, limit: int = 5):
         """
         Since SoundCloud doesn't support remote playback, we search and return the track info
         effectively acting as a 'resolve' step.
         """
-        # Search for the track
-        resp = requests.get(
-            f"{self.BASE_API_URL}/tracks",
-            headers=self._headers(),
-            params={"q": query, "limit": 1}
-        )
-        resp.raise_for_status()
-        results = resp.json()
+        uris, track_info = self._resolve_track(db, platform_account_id, query, limit=1) # Limit 1 as we play the best match
         
-        if not results:
-            return "No track found on SoundCloud matching that query."
+        if not track_info:
+             return "No track found on SoundCloud matching that query."
 
-        track = results[0]
-        
         # Return structured data for Frontend Player
         return {
-            "message": f"Playing {track['title']} by {track['user']['username']} on SoundCloud.",
-            "track_info": {
-                "title": track['title'],
-                "subtitle": track['user']['username'],
-                "type": "song",
-                "image": track.get("artwork_url") or track.get("user", {}).get("avatar_url"),
-                "permalink_url": track["permalink_url"], # Critical for Widget
-                "uri": track["uri"]
-            }
+            "message": f"Playing {track_info['title']} by {track_info['subtitle']} on SoundCloud.",
+            "track_info": track_info
         }
 
     def play_playlist_by_name(self, db: Session, platform_account_id: int, playlist_name: str):

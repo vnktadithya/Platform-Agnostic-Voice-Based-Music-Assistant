@@ -4,6 +4,7 @@ import logging
 import os
 from typing import Optional
 from backend.adapters.spotify_adapter import SpotifyAdapter
+from spotipy.exceptions import SpotifyException
 from backend.adapters.soundcloud_adapter import SoundCloudAdapter
 from backend.models.database_models import PlatformAccount, SystemUser
 from backend.services.data_sync_service import sync_spotify_library, sync_soundcloud_library
@@ -63,6 +64,23 @@ def get_platform_status(
         # FIX: Check if we actually have a valid token (it might have been wiped on error)
         if not account.refresh_token:
              return {"is_connected": False, "reason": "Authorization expired"}
+
+        # Validate token against API
+        try:
+             # decrypt token if needed, usually access_token is in meta_data
+             from backend.services.data_sync_service import get_valid_soundcloud_access_token
+             token = get_valid_soundcloud_access_token(db, account)
+             
+             adapter = SoundCloudAdapter(token)
+             if not adapter.validate_token():
+                 # Token is invalid, clear it
+                 account.refresh_token = None
+                 db.commit()
+                 return {"is_connected": False, "reason": "Token expired/revoked"}
+                 
+        except Exception as e:
+             logging.error(f"SoundCloud status check failed: {e}")
+             return {"is_connected": False, "reason": f"Validation failed: {str(e)}"}
 
         return {
             "is_connected": True, 
@@ -165,6 +183,18 @@ def spotify_callback(request: Request, code: str = Query(...), db: Session = Dep
         return RedirectResponse(
             url=f"{frontend_url}/chat?platform=spotify&account_id={account.id}&user_id={system_user.id}"
         )
+    except SpotifyException as e:
+        error_msg = str(e).lower()
+        if "user not registered" in error_msg or "403" in error_msg:
+             logging.warning(f"Spotify Login Access Denied: {e}")
+             frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+             return RedirectResponse(
+                 url=f"{frontend_url}/platform-select?error=access_denied"
+             )
+        
+        logging.error(f"Spotify Exception: {e}", exc_info=True)
+        return JSONResponse(status_code=500, content={"detail": f"Spotify Error: {str(e)}"})
+
     except Exception as e:
         logging.error(f"Spotify Callback Failed: {e}", exc_info=True)
         return JSONResponse(status_code=500, content={"detail": f"Spotify Callback Error: {str(e)}"})

@@ -336,6 +336,10 @@ class DialogManager:
                 final_reply = user_friendly_msg
                 error_occurred = True
                 error_msg = user_friendly_msg
+
+            except AuthenticationError:
+                # Re-raise to let the global exception handler return 401
+                raise
             
             except Exception as e:
                 logger.error(f"Action execution failed: {e}", exc_info=True)
