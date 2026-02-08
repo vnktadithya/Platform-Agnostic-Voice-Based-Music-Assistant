@@ -109,6 +109,11 @@ origins = [
     "https://*.vercel.app" # Allow Vercel preview deployments
 ]
 
+# Add FRONTEND_URL from environment if set
+frontend_url = os.getenv("FRONTEND_URL")
+if frontend_url:
+    origins.append(frontend_url)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,

@@ -12,6 +12,10 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL environment variable is not set. Please assume Postgres is required.")
 
+# Fix for Render/Heroku 'postgres://' (deprecated) -> 'postgresql://'
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 # The engine is the entry point to our database.
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
