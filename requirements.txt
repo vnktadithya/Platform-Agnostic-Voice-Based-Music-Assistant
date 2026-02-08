@@ -21,3 +21,4 @@ starlette
 python-socketio
 psycopg2-binary
 cryptography
+gunicorn
