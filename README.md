@@ -277,6 +277,8 @@ The project is live at **[sam-self-adaptive-music-intelligence.vercel.app](https
 > [!NOTE]
 > **Cold Start Delay**: This project is deployed on Render's free tier, which spins down after 15 minutes of inactivity. If the demo feels unresponsive initially, please allow **1-2 minutes** for the backend to wake up.
 
+---
+
 ## 🤝 Contributing
 
 I welcome contributions! Please check the specific documentation for the component you want to modify:
