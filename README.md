@@ -9,6 +9,7 @@
   [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
   [![Groq](https://img.shields.io/badge/AI-Groq%20Llama3-orange?style=for-the-badge)](https://groq.com/)
   [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+  [![Live Demo](https://img.shields.io/badge/Demo-View%20Live-brightgreen?style=for-the-badge&logo=vercel)](https://sam-self-adaptive-music-intelligence.vercel.app)
 
   <p align="center">
     <b>A Platform-Agnostic, Voice-Controlled, 3D Music Assistant.</b><br />
@@ -37,6 +38,7 @@ All of this happens within a stunning **3D immersive interface** built with Reac
 | **⚡ Low Latency** | Optimized architecture using **Redis** for caching and **WebSockets** for real-time state synchronization (< 500ms response time). |
 | **🔄 Smart Sync** | Background **Celery workers** keep your playlists, liked songs, and libraries in sync across all connected platforms. |
 | **🧠 Adaptive Intelligence** | Logs user interactions and feedback to build a dataset for future fine-tuning, allowing the model to learn your preferences over time. |
+| **🔇 Smart Audio Ducking** | Intelligent volume modulation that automatically lowers music volume when the assistant speaks or listens, ensuring clear voice command recognition without pausing playback. |
 
 ---
 
@@ -117,6 +119,21 @@ Before setting up SAM, ensure you meet the requirements for the music platforms 
 >   Get your API key here: [API keys - GroqCloud](https://console.groq.com/keys)
 
 ---
+
+## 🚀 Deployment
+
+The project is live at **[sam-self-adaptive-music-intelligence.vercel.app](https://sam-self-adaptive-music-intelligence.vercel.app)**.
+
+### Deployment Stack
+*   **Frontend**: Deployed on **Vercel** for global edge caching.
+*   **Backend**: Deployed on **Render** (Python Web Service).
+*   **Database**: Managed by **Supabase** (PostgreSQL).
+*   **Caching & Broker**: Managed by **Upstash** (Serverless Redis).
+
+> [!IMPORTANT]
+> **Access & Testing Policy**
+> *   **SoundCloud**: ✅ **Open to All**. You can log in with any active SoundCloud account to test the full functionality.
+> *   **Spotify**: ⚠️ **Restricted**. Due to Spotify's "Development Mode" restrictions, you cannot log in unless your email is manually added to my Developer Dashboard. Additionally, a **Spotify Premium** account is required for playback control through API services.
 
 ## 🛠️ Getting Started
 

@@ -4,6 +4,18 @@ The **SAM Backend** is a high-performance, asynchronous FastAPI application that
 
 ---
 
+## 🚀 Deployment (Render)
+
+The backend is configured for deployment on **Render** using the `render.yaml` blueprint.
+
+1.  **Web Service**: Runs the FastAPI app using `gunicorn` with `uvicorn` workers for production-grade concurrency.
+2.  **Worker Service**: Runs a separate `celery` worker process to handle background library synchronization (Gevent pool).
+3.  **Redis**: Utilized as both the Celery message broker and the real-time cache.
+
+Configuration is defined in `render.yaml`, with environment variables managed securely via the Render Dashboard.
+
+---
+
 ## 🛠️ Technical Stack
 
 - **Core Framework**: Python 3.10+, FastAPI, Pydantic

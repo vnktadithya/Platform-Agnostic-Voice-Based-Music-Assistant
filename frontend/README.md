@@ -47,7 +47,9 @@ Global state is centralized in **`store/useStore.ts`** using **Zustand**.
 
 ### Hooks (`hooks/`)
 -   **`useChatHandler`**: The central brain. Orchestrates voice recording, API calls, and response handling.
--   **`useAudioController`**: Bridges the gap between Three.js visuals and audio data (frequency analysis).
+-   **`useAudioController`**: The Audio Engine.
+    -   **Ducking/Unducking**: Automatically lowers volume (to 40% on Spotify, 0% on SoundCloud) during voice interaction to prevent STT interference.
+    -   **State Management**: Snapshots current volume before speaking and restores it precisely after the interaction ends.
 -   **`usePlatformStatus`**: Polls the backend to ensure the selected music platform is active and authenticated.
 
 ### Services (`services/`)
