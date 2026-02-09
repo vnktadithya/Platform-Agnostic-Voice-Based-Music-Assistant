@@ -19,7 +19,7 @@
 
 ---
 
-## 🚀 Overview
+##  Overview
 
 **SAM** (Self Adaptive Music) is a next-generation voice assistant designed to revolutionize how you interact with music. Breaking away from static playlists, SAM uses advanced **LLMs (Groq Llama 3)** to understand natural language and intent, executing complex commands across multiple platforms like **Spotify** and **SoundCloud**.
 
@@ -27,7 +27,7 @@ All of this happens within a stunning **3D immersive interface** built with Reac
 
 ---
 
-## ✨ Key Features
+##  Key Features
 
 | Feature | Description |
 | :--- | :--- |
@@ -42,7 +42,7 @@ All of this happens within a stunning **3D immersive interface** built with Reac
 
 ---
 
-## 🏗️ Architecture
+##  Architecture
 
 SAM follows a clean, modular architecture designed for performance and scalability.
 
@@ -100,7 +100,7 @@ personal-voice-assistant/
 
 ---
 
-## ⚠️ Service Requirements
+##  Service Requirements
 
 Before setting up SAM, ensure you meet the requirements for the music platforms and Groq services you intend to use.
 
@@ -120,7 +120,7 @@ Before setting up SAM, ensure you meet the requirements for the music platforms 
 
 ---
 
-## 🛠️ Getting Started
+##  Getting Started
 
 Follow these steps to set up a local instance of SAM.
 
@@ -246,7 +246,7 @@ Visit **`http://localhost:5173`** to enter SAM.
 
 ---
 
-## 🗣️ Usage
+##  Usage
 
 Once inside the application, click on mic button to activate the "Listening" state (or ensure your mic is authorized). Additionally the platform supports text input as well. 
 
@@ -259,7 +259,7 @@ Once inside the application, click on mic button to activate the "Listening" sta
 
 ---
 
-## 🚀 Deployment
+##  Deployment
 
 The project is live at **[sam-self-adaptive-music-intelligence.vercel.app](https://sam-self-adaptive-music-intelligence.vercel.app)**.
 
@@ -271,8 +271,8 @@ The project is live at **[sam-self-adaptive-music-intelligence.vercel.app](https
 
 > [!IMPORTANT]
 > **Access & Testing Policy**
-> *   **SoundCloud**: ✅ **Open to All**. You can log in with any active SoundCloud account to test the full functionality.
-> *   **Spotify**: ⚠️ **Restricted**. Due to Spotify's "Development Mode" restrictions, you cannot log in unless your email is manually added to my Developer Dashboard. Additionally, a **Spotify Premium** account is required for playback control through API services.
+> *   **SoundCloud**:  **Open to All**. You can log in with any active SoundCloud account to test the full functionality.
+> *   **Spotify**:  **Restricted**. Due to Spotify's "Development Mode" restrictions, you cannot log in unless your email is manually added to my Developer Dashboard. Additionally, a **Spotify Premium** account is required for playback control through API services.
 
 > [!NOTE]
 > **Cold Start Delay**: This project is deployed on Render's free tier, which spins down after 15 minutes of inactivity. If the demo feels unresponsive initially, please allow **1-2 minutes** for the backend to wake up.
